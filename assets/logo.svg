@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Welyt</title>
+  <rect width="1024" height="1024" fill="#26333c"/>
+  <svg x="144" y="144" width="736" height="736" viewBox="0 0 24 24">
+    <path d="M4 19V5h5v9h5V5h6v14M4 11h16" fill="none" stroke="#efb397" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</svg>

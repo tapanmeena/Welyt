@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+artifacts/
+
+# local env files
+.env*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+
+# local development files
+local/
