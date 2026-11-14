@@ -2,39 +2,40 @@
 
 ## Commands
 
-The repository is an npm workspace monorepo (`workspaces: ["packages/*", "apps/*"]`) containing
-`packages/shared` (`@welyt/shared` Zod 4 contracts), `apps/mobile` (Expo / React Native /
-TypeScript), and `apps/api` (Fastify / Drizzle ORM / SQLite / TypeScript). Run workspace commands
-from the repository root unless running Expo/EAS CLI commands specifically inside `apps/mobile`.
+The repository is a pnpm workspace monorepo (`pnpm-workspace.yaml` with `packages/*`, `apps/*`,
+`nodeLinker: hoisted`, and `allowBuilds`) containing `packages/shared` (`@welyt/shared` Zod 4
+contracts), `apps/mobile` (Expo / React Native / TypeScript), and `apps/api` (Fastify / Drizzle ORM /
+SQLite / TypeScript). Run workspace commands from the repository root unless running Expo/EAS CLI
+commands specifically inside `apps/mobile`.
 
-| Purpose                                                          | Command                                              |
-| ---------------------------------------------------------------- | ---------------------------------------------------- |
-| Install locked dependencies                                      | `npm ci`                                             |
-| Build shared contracts package                                   | `npm run shared:build`                               |
-| Start Metro for the installed mobile development client          | `npm run mobile`                                     |
-| Start mobile web development                                     | `npm run mobile:web`                                 |
-| Start API server in watch mode                                   | `npm run api`                                        |
-| Build / start compiled API                                       | `npm run api:build` / `npm run api:start`            |
-| Generate / apply API Drizzle migrations                          | `npm run api:db:generate` / `npm run api:db:migrate` |
-| Run API integration tests (`node --test`)                        | `npm test`                                           |
-| Type-check all workspaces                                        | `npm run typecheck`                                  |
-| Lint / auto-fix all workspaces                                   | `npm run lint` / `npm run lint:fix`                  |
-| Check / apply formatting                                         | `npm run format:check` / `npm run format`            |
-| Check Expo dependency compatibility                              | `npm run check:dependencies`                         |
-| Combined checks (format, types, lint, dependency compatibility)  | `npm run check`                                      |
-| Additional Expo diagnostics                                      | `cd apps/mobile && npx expo-doctor`                  |
-| Export Android and iOS JavaScript bundles to `apps/mobile/dist/` | `npm run mobile:export:check`                        |
-| Generate native projects                                         | `npm run mobile:prebuild`                            |
-| Build and run locally on Android / iOS                           | `npm run mobile:android` / `npm run mobile:ios`      |
+| Purpose                                                          | Command                                                |
+| ---------------------------------------------------------------- | ------------------------------------------------------ |
+| Install locked dependencies                                      | `pnpm install --frozen-lockfile`                       |
+| Build shared contracts package                                   | `pnpm run shared:build`                                |
+| Start Metro for the installed mobile development client          | `pnpm run mobile`                                      |
+| Start mobile web development                                     | `pnpm run mobile:web`                                  |
+| Start API server in watch mode                                   | `pnpm run api`                                         |
+| Build / start compiled API                                       | `pnpm run api:build` / `pnpm run api:start`            |
+| Generate / apply API Drizzle migrations                          | `pnpm run api:db:generate` / `pnpm run api:db:migrate` |
+| Run API integration tests (`node --test`)                        | `pnpm test`                                            |
+| Type-check all workspaces                                        | `pnpm run typecheck`                                   |
+| Lint / auto-fix all workspaces                                   | `pnpm run lint` / `pnpm run lint:fix`                  |
+| Check / apply formatting                                         | `pnpm run format:check` / `pnpm run format`            |
+| Check Expo dependency compatibility                              | `pnpm run check:dependencies`                          |
+| Combined checks (format, types, lint, dependency compatibility)  | `pnpm run check`                                       |
+| Additional Expo diagnostics                                      | `cd apps/mobile && pnpm dlx expo-doctor`               |
+| Export Android and iOS JavaScript bundles to `apps/mobile/dist/` | `pnpm run mobile:export:check`                         |
+| Generate native projects                                         | `pnpm run mobile:prebuild`                             |
+| Build and run locally on Android / iOS                           | `pnpm run mobile:android` / `pnpm run mobile:ios`      |
 
-`npm test` runs Fastify `app.inject()` integration tests against `:memory:` SQLite databases.
+`pnpm test` runs Fastify `app.inject()` integration tests against `:memory:` SQLite databases.
 `mobile:export:check` checks JavaScript bundling, not native compilation or runtime behavior.
 
 Ordinary mobile screen, style, navigation, and JavaScript changes use the existing development
 client and Metro; do not run prebuild or native builds for these changes. Native dependency,
 config-plugin, permission, entitlement, identifier, launcher-icon, or native-splash changes require
-a new client. Use Expo-compatible dependency selections (`cd apps/mobile && npx expo install <package>`)
-for native packages.
+a new client. Use Expo-compatible dependency selections
+(`cd apps/mobile && pnpm exec expo install <package>`) for native packages.
 
 ## Architecture
 
