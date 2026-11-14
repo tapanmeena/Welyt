@@ -4,9 +4,35 @@ User
 - name
 - email
 - passwordHash
-- debtMode <!-- remaining EMIs or outstanding principal -->
+- debtMode <!-- remaining_emis or outstanding_principal -->
+- emailVerifiedAt
 - created_at
 - updated_at
+
+AuthSession
+
+- id
+- userId
+- familyId
+- refreshTokenHash
+- deviceName
+- ipAddress
+- userAgent
+- expiresAt
+- revokedAt
+- lastUsedAt
+- created_at
+
+AuthChallenge
+
+- id
+- userId
+- purpose <!-- email_verification or password_reset -->
+- codeHash
+- attempts
+- expiresAt
+- consumedAt
+- created_at
 
 Account
 

@@ -1,17 +1,13 @@
 import { buildApp } from './app.ts';
+import { loadApiEnv } from './config/env.ts';
 
-const host = process.env.HOST ?? '0.0.0.0';
-const port = Number(process.env.PORT ?? 3000);
-
-if (!Number.isInteger(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: ${process.env.PORT}`);
-}
-
-const app = buildApp({ logger: true });
+const env = loadApiEnv();
 
 async function start(): Promise<void> {
+  const app = await buildApp({ logger: true, env });
+
   try {
-    await app.listen({ host, port });
+    await app.listen({ host: env.host, port: env.port });
   } catch (err) {
     app.log.error(err);
     process.exit(1);

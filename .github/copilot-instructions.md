@@ -2,29 +2,33 @@
 
 ## Commands
 
-The repository is an npm workspace monorepo (`workspaces: ["apps/*"]`) containing `apps/mobile`
-(Expo / React Native / TypeScript) and `apps/api` (Fastify / TypeScript). Run workspace commands
+The repository is an npm workspace monorepo (`workspaces: ["packages/*", "apps/*"]`) containing
+`packages/shared` (`@welyt/shared` Zod 4 contracts), `apps/mobile` (Expo / React Native /
+TypeScript), and `apps/api` (Fastify / Drizzle ORM / SQLite / TypeScript). Run workspace commands
 from the repository root unless running Expo/EAS CLI commands specifically inside `apps/mobile`.
 
-| Purpose                                                          | Command                                         |
-| ---------------------------------------------------------------- | ----------------------------------------------- |
-| Install locked dependencies                                      | `npm ci`                                        |
-| Start Metro for the installed mobile development client          | `npm run mobile`                                |
-| Start mobile web development                                     | `npm run mobile:web`                            |
-| Start API server in watch mode                                   | `npm run api`                                   |
-| Build / start compiled API                                       | `npm run api:build` / `npm run api:start`       |
-| Type-check all workspaces                                        | `npm run typecheck`                             |
-| Lint / auto-fix all workspaces                                   | `npm run lint` / `npm run lint:fix`             |
-| Check / apply formatting                                         | `npm run format:check` / `npm run format`       |
-| Check Expo dependency compatibility                              | `npm run check:dependencies`                    |
-| Combined checks (format, types, lint, dependency compatibility)  | `npm run check`                                 |
-| Additional Expo diagnostics                                      | `cd apps/mobile && npx expo-doctor`             |
-| Export Android and iOS JavaScript bundles to `apps/mobile/dist/` | `npm run mobile:export:check`                   |
-| Generate native projects                                         | `npm run mobile:prebuild`                       |
-| Build and run locally on Android / iOS                           | `npm run mobile:android` / `npm run mobile:ios` |
+| Purpose                                                          | Command                                              |
+| ---------------------------------------------------------------- | ---------------------------------------------------- |
+| Install locked dependencies                                      | `npm ci`                                             |
+| Build shared contracts package                                   | `npm run shared:build`                               |
+| Start Metro for the installed mobile development client          | `npm run mobile`                                     |
+| Start mobile web development                                     | `npm run mobile:web`                                 |
+| Start API server in watch mode                                   | `npm run api`                                        |
+| Build / start compiled API                                       | `npm run api:build` / `npm run api:start`            |
+| Generate / apply API Drizzle migrations                          | `npm run api:db:generate` / `npm run api:db:migrate` |
+| Run API integration tests (`node --test`)                        | `npm test`                                           |
+| Type-check all workspaces                                        | `npm run typecheck`                                  |
+| Lint / auto-fix all workspaces                                   | `npm run lint` / `npm run lint:fix`                  |
+| Check / apply formatting                                         | `npm run format:check` / `npm run format`            |
+| Check Expo dependency compatibility                              | `npm run check:dependencies`                         |
+| Combined checks (format, types, lint, dependency compatibility)  | `npm run check`                                      |
+| Additional Expo diagnostics                                      | `cd apps/mobile && npx expo-doctor`                  |
+| Export Android and iOS JavaScript bundles to `apps/mobile/dist/` | `npm run mobile:export:check`                        |
+| Generate native projects                                         | `npm run mobile:prebuild`                            |
+| Build and run locally on Android / iOS                           | `npm run mobile:android` / `npm run mobile:ios`      |
 
-There is no configured application test runner or test suite yet. `mobile:export:check` checks
-JavaScript bundling, not native compilation or runtime behavior.
+`npm test` runs Fastify `app.inject()` integration tests against `:memory:` SQLite databases.
+`mobile:export:check` checks JavaScript bundling, not native compilation or runtime behavior.
 
 Ordinary mobile screen, style, navigation, and JavaScript changes use the existing development
 client and Metro; do not run prebuild or native builds for these changes. Native dependency,
@@ -34,17 +38,22 @@ for native packages.
 
 ## Architecture
 
-- `apps/mobile`: Expo/React Native/TypeScript starter (`expo-router/entry`), with file-based routes
-  in `apps/mobile/src/app/`. `apps/mobile/src/app/_layout.tsx` owns the root gesture-handler view,
-  status bar, and headerless router stack. `apps/mobile/src/app/index.tsx` is currently the only
-  screen: a safe-area-aware Hello World view with the logo.
-- `apps/api`: Minimal Fastify/TypeScript starter (`apps/api/src/app.ts` and
-  `apps/api/src/server.ts`) currently exposing `GET /health`. There is no database, authentication,
-  financial data model implementation, or deployment configuration wired up yet.
+- `packages/shared`: Shared `@welyt/shared` workspace exporting Zod 4 schemas, auth DTOs, and
+  standardized API error codes consumed by both `apps/api` and `apps/mobile`.
+- `apps/mobile`: Expo/React Native/TypeScript client (`expo-router/entry`), with file-based routes
+  in `apps/mobile/src/app/`. `apps/mobile/src/app/_layout.tsx` owns the root `GestureHandlerRootView`,
+  `QueryClientProvider`, status bar, splash-screen session hydration, and `Stack.Protected` guards
+  separating `(auth)` (sign-in, sign-up, verify-email, forgot-password, reset-password) and `(app)`
+  (verified workspace and change-password). Auth state uses Zustand + SecureStore (with web
+  AsyncStorage fallback) and a fetch client with single-flight `401` refresh rotation.
+- `apps/api`: Fastify/TypeScript API (`apps/api/src/app.ts` and `apps/api/src/server.ts`) backed by
+  SQLite (`better-sqlite3`) and Drizzle ORM (`apps/api/src/db/schema.ts`, migrations in
+  `apps/api/drizzle/`). Exposes `GET /health` and `/auth/*` routes (`register`, `login`, `refresh`,
+  `logout`, `logout-all`, `me`, `verify-email`, `resend-verification`, `forgot-password`,
+  `reset-password`, `change-password`) plus `app.authGuards` (`authenticate`, `requireVerifiedEmail`).
 
-React Query, Zustand, React Hook Form/Zod, Decimal.js, storage/security APIs, charts, and other
-native libraries are installed in `apps/mobile` for future features. They are not yet wired into
-application providers or runtime flows; do not assume those integrations already exist.
+Decimal.js, charts, biometric local-auth, document picker, notifications, and financial domain
+models remain installed in `apps/mobile` for upcoming financial modules.
 
 `apps/mobile/app.json` is the source for native identity, config plugins, permissions, branding, and
 Expo Updates configuration. `apps/mobile/eas.json` defines internal development-client builds:

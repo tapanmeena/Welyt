@@ -15,5 +15,14 @@ artifacts/
 # typescript
 *.tsbuildinfo
 
+# sqlite
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+apps/api/data/
+
 # local development files
 local/

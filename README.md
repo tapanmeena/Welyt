@@ -1,12 +1,15 @@
 # Welyt
 
-Welyt is an npm workspace monorepo for a personal finance application, containing an Expo / React
-Native / TypeScript client (`apps/mobile`) and a minimal Fastify / TypeScript API starter
-(`apps/api`).
+Welyt is an npm workspace monorepo for a personal finance application, containing shared Zod
+contracts (`packages/shared`), an Expo / React Native / TypeScript client (`apps/mobile`), and a
+Fastify / Drizzle ORM / SQLite API (`apps/api`).
 
-Currently, `apps/mobile` displays the Welyt logo and **Hello World** on a single safe-area-aware
-screen, and `apps/api` exposes a `GET /health` endpoint. Financial screens, authentication,
-database persistence, and deployment configuration are not implemented yet.
+`apps/api` provides SQLite persistence via Drizzle ORM, `GET /health`, and full email/password
+authentication (registration, sign-in, rotating refresh tokens with reuse revocation, email OTP
+verification, forgot/reset password, password updates, and profile preferences). `apps/mobile`
+wires Expo Router protected route groups, SecureStore session persistence, single-flight token
+refresh, React Query, Zustand, and React Hook Form auth screens. Financial domain screens and
+deployment configuration are not implemented yet.
 
 ## Project layout
 
@@ -14,26 +17,43 @@ database persistence, and deployment configuration are not implemented yet.
 .
 ├── .github/
 │   └── copilot-instructions.md # Repository guidance
+├── packages/
+│   └── shared/                 # @welyt/shared Zod 4 schemas, auth DTOs, and error codes
 ├── apps/
-│   ├── api/                    # Fastify + TypeScript API starter
+│   ├── api/                    # Fastify + Drizzle + SQLite API
+│   │   ├── drizzle/            # Generated SQLite SQL migrations
 │   │   ├── src/
-│   │   │   ├── app.ts          # Fastify app builder and /health route
+│   │   │   ├── __tests__/      # Fastify inject + in-memory SQLite integration tests
+│   │   │   ├── config/         # Environment validation
+│   │   │   ├── db/             # Drizzle schema, client, and migration runner
+│   │   │   ├── lib/            # Password scrypt, JWT, OTP crypto, errors, mailer
+│   │   │   ├── modules/auth/   # Auth service and routes (/auth/*)
+│   │   │   ├── plugins/        # Bearer JWT and verified-email route guards
+│   │   │   ├── app.ts          # Fastify app builder, plugins, and routes
 │   │   │   └── server.ts       # HTTP server entry point
+│   │   ├── .env.example        # API environment template
+│   │   ├── drizzle.config.ts   # Drizzle Kit configuration
 │   │   ├── eslint.config.js    # API ESLint flat config
 │   │   ├── package.json        # API dependencies and scripts
 │   │   └── tsconfig.json       # API TypeScript config
-│   └── mobile/                 # Expo (Android, iOS, web) client starter
+│   └── mobile/                 # Expo (Android, iOS, web) client
 │       ├── assets/             # Source logo and raster branding assets
 │       ├── src/
-│       │   └── app/
-│       │       ├── _layout.tsx # Gesture root, status bar, headerless router stack
-│       │       └── index.tsx   # Logo and Hello World screen
+│       │   ├── app/
+│       │   │   ├── (app)/      # Protected verified-user workspace and change-password routes
+│       │   │   ├── (auth)/     # Sign-in, sign-up, verify-email, forgot/reset-password routes
+│       │   │   └── _layout.tsx # Gesture root, QueryClientProvider, splash hydration, guards
+│       │   ├── components/auth/# Reusable auth form and shell components
+│       │   ├── features/auth/  # Auth API client methods, Zustand store, React Query hooks
+│       │   ├── lib/            # Fetch client with 401 refresh queue, SecureStore adapter
+│       │   └── theme/          # Brand color palette
+│       ├── .env.example        # Mobile environment template
 │       ├── app.json            # Expo identity, plugins, permissions, updates
 │       ├── eas.json            # Internal development-client build profiles
 │       ├── eslint.config.js    # Expo flat config and Prettier compatibility
 │       ├── package.json        # Mobile dependencies and scripts
 │       └── tsconfig.json       # Mobile TypeScript config
-├── model.md                    # Draft financial data-model notes
+├── model.md                    # Financial and authentication data-model notes
 ├── package.json                # Workspace root scripts
 ├── package-lock.json           # Single workspace lockfile
 ├── tsconfig.base.json          # Shared strict TypeScript compiler options
@@ -41,8 +61,8 @@ database persistence, and deployment configuration are not implemented yet.
 ```
 
 Expo Router loads through `expo-router/entry` inside `apps/mobile` and uses file-based routes under
-`apps/mobile/src/app/`. The `@/*` import alias in `apps/mobile` maps to `apps/mobile/src/*`. No
-database, migrations, or runtime financial models are implemented yet.
+`apps/mobile/src/app/`. The `@/*` import alias in `apps/mobile` maps to `apps/mobile/src/*`. Shared
+validation schemas and DTOs live in `@welyt/shared` (`packages/shared`).
 
 ## Getting started
 
@@ -77,12 +97,18 @@ platform-specific handling when implemented.
 
 ### Run the API server
 
+Copy `apps/api/.env.example` to `apps/api/.env` if you want custom settings, then start the server:
+
 ```bash
 npm run api
 ```
 
-This starts the Fastify server in watch mode on `http://localhost:3000` (configurable with `HOST`
-and `PORT` environment variables) with `GET /health`.
+This builds `@welyt/shared`, runs pending Drizzle SQLite migrations against `DATABASE_URL`
+(defaulting to `apps/api/data/welyt.db`), and starts the Fastify server in watch mode on
+`http://localhost:3000` (configurable with `HOST` and `PORT`). Set `SMTP_USER` (your Gmail address)
+and `SMTP_PASS` (your 16-character Google App Password) in `apps/api/.env` to deliver real
+verification and password reset emails over Gmail SMTP; when left blank, codes and `welyt://` deep
+links are logged to the API console.
 
 ### Create or refresh a native mobile client
 
@@ -110,25 +136,29 @@ native projects through prebuild when changing native configuration.
 
 Run workspace commands from the repository root:
 
-| Purpose                                       | Command                                         |
-| --------------------------------------------- | ----------------------------------------------- |
-| Install locked dependencies                   | `npm ci`                                        |
-| Start Metro for the mobile development client | `npm run mobile`                                |
-| Start mobile web development                  | `npm run mobile:web`                            |
-| Start API server in watch mode                | `npm run api`                                   |
-| Build / start compiled API                    | `npm run api:build` / `npm run api:start`       |
-| Type-check all workspaces                     | `npm run typecheck`                             |
-| Lint / auto-fix all workspaces                | `npm run lint` / `npm run lint:fix`             |
-| Check / apply formatting                      | `npm run format:check` / `npm run format`       |
-| Check Expo dependency compatibility           | `npm run check:dependencies`                    |
-| Run format, type, lint, and dependency checks | `npm run check`                                 |
-| Additional Expo diagnostics (run in mobile)   | `cd apps/mobile && npx expo-doctor`             |
-| Export Android and iOS JS bundles             | `npm run mobile:export:check`                   |
-| Generate native projects                      | `npm run mobile:prebuild`                       |
-| Build and run locally on Android / iOS        | `npm run mobile:android` / `npm run mobile:ios` |
+| Purpose                                       | Command                                              |
+| --------------------------------------------- | ---------------------------------------------------- |
+| Install locked dependencies                   | `npm ci`                                             |
+| Build shared contracts package                | `npm run shared:build`                               |
+| Start Metro for the mobile development client | `npm run mobile`                                     |
+| Start mobile web development                  | `npm run mobile:web`                                 |
+| Start API server in watch mode                | `npm run api`                                        |
+| Build / start compiled API                    | `npm run api:build` / `npm run api:start`            |
+| Generate / apply API Drizzle migrations       | `npm run api:db:generate` / `npm run api:db:migrate` |
+| Run API integration test suite                | `npm test`                                           |
+| Type-check all workspaces                     | `npm run typecheck`                                  |
+| Lint / auto-fix all workspaces                | `npm run lint` / `npm run lint:fix`                  |
+| Check / apply formatting                      | `npm run format:check` / `npm run format`            |
+| Check Expo dependency compatibility           | `npm run check:dependencies`                         |
+| Run format, type, lint, and dependency checks | `npm run check`                                      |
+| Additional Expo diagnostics (run in mobile)   | `cd apps/mobile && npx expo-doctor`                  |
+| Export Android and iOS JS bundles             | `npm run mobile:export:check`                        |
+| Generate native projects                      | `npm run mobile:prebuild`                            |
+| Build and run locally on Android / iOS        | `npm run mobile:android` / `npm run mobile:ios`      |
 
-There is no configured test runner or test suite yet. `mobile:export:check` writes JavaScript
-bundles to `apps/mobile/dist/`; it does not compile a native client or verify runtime behavior.
+`npm test` runs the API integration tests (`node --test`) against isolated `:memory:` SQLite
+databases. `mobile:export:check` writes JavaScript bundles to `apps/mobile/dist/`; it does not
+compile a native client or verify runtime behavior.
 
 ## App identity and EAS
 
@@ -179,7 +209,8 @@ exact dependency selections.
 
 | Area                   | Libraries                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------ |
-| API server             | Fastify                                                                              |
+| API server & security  | Fastify, `@fastify/cors`, `@fastify/helmet`, `@fastify/rate-limit`, `jose`           |
+| Database & validation  | Drizzle ORM, `better-sqlite3`, Drizzle Kit, Zod 4 (`@welyt/shared`)                  |
 | Routing and layout     | Expo Router, React Native Screens, Safe Area Context, Gesture Handler                |
 | UI and animation       | Reanimated, Worklets, Bottom Sheet, Keyboard Controller, SVG, Lucide, DateTimePicker |
 | Data and forms         | TanStack React Query, Zustand, React Hook Form, Zod, Hook Form resolvers             |
@@ -190,8 +221,9 @@ exact dependency selections.
 | Expo support           | Dev Client, Constants, Font, Splash Screen, Status Bar, System UI, Updates, Insights |
 | Web                    | React DOM, React Native Web, Expo Metro Runtime                                      |
 
-Only the router, gesture root, status bar, safe-area screen, basic React Native UI, and the API
-`/health` endpoint are currently wired up.
+Authentication, session rotation, SecureStore token persistence, React Query, Zustand, React Hook
+Form, and Expo Router protected route groups are wired up across `packages/shared`, `apps/api`, and
+`apps/mobile`. Financial tracking modules and charts remain to be wired.
 
 ## Branding and conventions
 
