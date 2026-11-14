@@ -1,7 +1,15 @@
 import { useMutation } from '@tanstack/react-query';
 import type { DebtMode } from '@welyt/shared';
-import { Link } from 'expo-router';
-import { CheckCircle2, KeyRound, LogOut, ShieldAlert } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import {
+  CheckCircle2,
+  ChevronRight,
+  KeyRound,
+  Landmark,
+  LogOut,
+  Scale,
+  ShieldAlert,
+} from 'lucide-react-native';
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,9 +18,27 @@ import { StatusBanner } from '@/components/auth/StatusBanner';
 import { authApi } from '@/features/auth/auth-api';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { useLogoutAllMutation, useLogoutMutation } from '@/features/auth/use-auth-mutations';
-import { colors } from '@/theme/colors';
+import { colors, radii } from '@/theme/colors';
+
+const DEBT_OPTIONS: readonly {
+  mode: DebtMode;
+  title: string;
+  description: string;
+}[] = [
+  {
+    mode: 'remaining_emis',
+    title: 'Remaining scheduled EMIs',
+    description: 'Counts total remaining scheduled EMI obligations in net-worth debt.',
+  },
+  {
+    mode: 'outstanding_principal',
+    title: 'Principal-only debt',
+    description: 'Counts remaining loan principal without future scheduled interest.',
+  },
+];
 
 export default function HomeScreen() {
+  const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const applyVerifiedUser = useAuthStore((state) => state.applyVerifiedUser);
   const logoutMutation = useLogoutMutation();
@@ -25,7 +51,7 @@ export default function HomeScreen() {
     mutationFn: (debtMode: DebtMode) => authApi.updateProfile({ debtMode }),
     onSuccess: async ({ user: updatedUser }) => {
       await applyVerifiedUser(updatedUser);
-      setFeedback({ tone: 'success', text: 'Debt calculation preference updated.' });
+      setFeedback({ tone: 'success', text: 'Financial valuation preference saved.' });
     },
     onError: (error) => {
       setFeedback({
@@ -39,104 +65,164 @@ export default function HomeScreen() {
     return null;
   }
 
-  const nextDebtMode: DebtMode =
-    user.debtMode === 'remaining_emis' ? 'outstanding_principal' : 'remaining_emis';
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.container}>
-          <View style={styles.heroCard}>
+      <View style={styles.toolbar}>
+        <View style={styles.toolbarBrand}>
+          <View style={styles.brandMark}>
             <Image
               source={require('../../../assets/icon.png')}
               style={styles.logo}
               accessibilityLabel="Welyt logo"
             />
-            <View style={styles.heroCopy}>
-              <Text style={styles.greeting}>Welcome, {user.name}</Text>
-              <Text style={styles.email}>{user.email}</Text>
-              <View style={styles.verifiedBadge}>
-                <CheckCircle2 size={15} color={colors.success} />
-                <Text style={styles.verifiedText}>Email verified</Text>
-              </View>
+          </View>
+          <Text style={styles.toolbarTitle} accessibilityRole="header">
+            Workspace
+          </Text>
+        </View>
+        <View style={styles.verifiedBadge}>
+          <CheckCircle2 size={13} color={colors.good} strokeWidth={2} />
+          <Text style={styles.verifiedText}>Verified</Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.stage}>
+          <View style={styles.heroCard}>
+            <View style={styles.heroTop}>
+              <Text style={styles.heroEyebrow}>Signed-in profile</Text>
+              <Text style={styles.heroTag}>Welyt</Text>
+            </View>
+            <Text style={styles.heroName}>{user.name}</Text>
+            <Text style={styles.heroEmail}>{user.email}</Text>
+            <View style={styles.heroFooter}>
+              <Text style={styles.heroFooterText}>
+                {user.debtMode === 'remaining_emis'
+                  ? 'Remaining scheduled EMIs · INR · Apr-Mar FY'
+                  : 'Principal-only debt · INR · Apr-Mar FY'}
+              </Text>
             </View>
           </View>
 
           {feedback ? <StatusBanner tone={feedback.tone} message={feedback.text} /> : null}
 
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Profile & preferences</Text>
-            <View style={styles.preferenceRow}>
-              <View style={styles.preferenceInfo}>
-                <Text style={styles.preferenceLabel}>Debt calculation mode</Text>
-                <Text style={styles.preferenceValue}>
-                  {user.debtMode === 'remaining_emis' ? 'Remaining EMIs' : 'Outstanding principal'}
-                </Text>
-              </View>
+          <View style={styles.callout}>
+            <Text style={styles.calloutTitle}>Make this workspace yours.</Text>
+            <Text style={styles.calloutCopy}>
+              Your session is encrypted on this device and synchronized with your Welyt account
+              conventions.
+            </Text>
+          </View>
+
+          <View style={styles.settingsGroup}>
+            <Text style={styles.groupHeading}>Financial conventions</Text>
+            <View style={styles.presetGrid}>
+              {DEBT_OPTIONS.map((option) => {
+                const selected = user.debtMode === option.mode;
+                return (
+                  <Pressable
+                    key={option.mode}
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      checked: selected,
+                      disabled: updateDebtModeMutation.isPending,
+                    }}
+                    disabled={updateDebtModeMutation.isPending}
+                    onPress={() => {
+                      if (!selected) {
+                        setFeedback(null);
+                        updateDebtModeMutation.mutate(option.mode);
+                      }
+                    }}
+                    style={[
+                      styles.presetOption,
+                      selected && styles.presetOptionSelected,
+                      updateDebtModeMutation.isPending && styles.disabledItem,
+                    ]}
+                  >
+                    <View style={[styles.tile, selected ? styles.tileRust : styles.tileWarm]}>
+                      {option.mode === 'remaining_emis' ? (
+                        <Landmark
+                          size={18}
+                          color={selected ? colors.tileRustFg : colors.tileWarmFg}
+                          strokeWidth={1.7}
+                        />
+                      ) : (
+                        <Scale
+                          size={18}
+                          color={selected ? colors.tileRustFg : colors.tileWarmFg}
+                          strokeWidth={1.7}
+                        />
+                      )}
+                    </View>
+                    <View style={styles.presetText}>
+                      <Text style={styles.presetTitle}>{option.title}</Text>
+                      <Text style={styles.presetDescription}>{option.description}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.settingsGroup}>
+            <Text style={styles.groupHeading}>Security & sessions</Text>
+            <View style={styles.settingsList}>
               <Pressable
                 accessibilityRole="button"
-                disabled={updateDebtModeMutation.isPending}
+                onPress={() => {
+                  router.push('/change-password');
+                }}
+                style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+              >
+                <View style={[styles.tile, styles.tileNavy]}>
+                  <KeyRound size={18} color={colors.tileNavyFg} strokeWidth={1.7} />
+                </View>
+                <View style={styles.rowMain}>
+                  <Text style={styles.rowTitle}>Change password</Text>
+                  <Text style={styles.rowSubtitle}>
+                    Update your password and sign out other devices.
+                  </Text>
+                </View>
+                <ChevronRight size={16} color={colors.muted} strokeWidth={1.8} />
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={logoutAllMutation.isPending}
                 onPress={() => {
                   setFeedback(null);
-                  updateDebtModeMutation.mutate(nextDebtMode);
+                  logoutAllMutation.mutate(undefined, {
+                    onError: (err) => {
+                      setFeedback({
+                        tone: 'error',
+                        text:
+                          err instanceof Error ? err.message : 'Unable to revoke active sessions.',
+                      });
+                    },
+                  });
                 }}
                 style={({ pressed }) => [
-                  styles.chipButton,
-                  pressed && styles.chipPressed,
-                  updateDebtModeMutation.isPending && styles.chipDisabled,
+                  styles.settingsRow,
+                  styles.settingsRowLast,
+                  pressed && styles.rowPressed,
                 ]}
               >
-                <Text style={styles.chipButtonText}>Switch</Text>
+                <View style={[styles.tile, styles.tileRust]}>
+                  <ShieldAlert size={18} color={colors.tileRustFg} strokeWidth={1.7} />
+                </View>
+                <View style={styles.rowMain}>
+                  <Text style={styles.rowTitle}>Sign out of all devices</Text>
+                  <Text style={styles.rowSubtitle}>
+                    Revoke every active session across phones and browsers.
+                  </Text>
+                </View>
+                <ChevronRight size={16} color={colors.muted} strokeWidth={1.8} />
               </Pressable>
             </View>
           </View>
 
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Account security</Text>
-
-            <Link href="/change-password" asChild>
-              <Pressable
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
-              >
-                <KeyRound size={20} color={colors.navy} />
-                <View style={styles.actionCopy}>
-                  <Text style={styles.actionTitle}>Change password</Text>
-                  <Text style={styles.actionSubtitle}>
-                    Update your password and sign out other devices
-                  </Text>
-                </View>
-              </Pressable>
-            </Link>
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={logoutAllMutation.isPending}
-              onPress={() => {
-                setFeedback(null);
-                logoutAllMutation.mutate(undefined, {
-                  onError: (err) => {
-                    setFeedback({
-                      tone: 'error',
-                      text:
-                        err instanceof Error ? err.message : 'Unable to revoke active sessions.',
-                    });
-                  },
-                });
-              }}
-              style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
-            >
-              <ShieldAlert size={20} color={colors.error} />
-              <View style={styles.actionCopy}>
-                <Text style={styles.actionTitle}>Sign out of all devices</Text>
-                <Text style={styles.actionSubtitle}>
-                  Revoke every active session across phones and browsers
-                </Text>
-              </View>
-            </Pressable>
-          </View>
-
-          <View style={styles.signOutContainer}>
+          <View style={styles.signOutBlock}>
             <AuthButton
               variant="secondary"
               label="Sign out"
@@ -145,9 +231,11 @@ export default function HomeScreen() {
                 void logoutMutation.mutateAsync();
               }}
             />
-            <View style={styles.footerHint}>
-              <LogOut size={14} color={colors.textMuted} />
-              <Text style={styles.footerHintText}>Signed in securely with Welyt</Text>
+            <View style={styles.securityNote}>
+              <LogOut size={14} color={colors.muted} strokeWidth={1.7} />
+              <Text style={styles.securityNoteText}>
+                Preferences apply across sessions without altering recorded history.
+              </Text>
             </View>
           </View>
         </View>
@@ -159,150 +247,247 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.cream,
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  container: {
-    width: '100%',
-    maxWidth: 480,
-    alignSelf: 'center',
-    gap: 18,
-  },
-  heroCard: {
+  toolbar: {
+    minHeight: 58,
+    paddingHorizontal: 18,
+    paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  toolbarBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandMark: {
+    width: 33,
+    height: 33,
+    borderRadius: 9,
+    backgroundColor: colors.navy,
+    overflow: 'hidden',
   },
   logo: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
+    width: 33,
+    height: 33,
+    borderRadius: 9,
   },
-  heroCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  greeting: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.navy,
-  },
-  email: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  toolbarTitle: {
+    fontSize: 21,
+    fontWeight: '600',
+    letterSpacing: -0.6,
+    color: colors.ink,
   },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    marginTop: 4,
-    paddingHorizontal: 10,
+    gap: 5,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: colors.successSurface,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
+    borderRadius: radii.badge,
+    backgroundColor: colors.goodBg,
   },
   verifiedText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: colors.success,
+    color: colors.good,
   },
-  sectionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 14,
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 17,
+    paddingTop: 6,
+    paddingBottom: 28,
   },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.navy,
+  stage: {
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
+    gap: 16,
   },
-  preferenceRow: {
+  heroCard: {
+    borderRadius: radii.hero,
+    backgroundColor: colors.navy,
+    paddingHorizontal: 18,
+    paddingTop: 19,
+    paddingBottom: 15,
+  },
+  heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 8,
   },
-  preferenceInfo: {
-    flex: 1,
-    gap: 2,
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: colors.heroSubtle,
   },
-  preferenceLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textPrimary,
+  heroTag: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.peach,
   },
-  preferenceValue: {
-    fontSize: 13,
-    color: colors.textSecondary,
+  heroName: {
+    fontSize: 26,
+    fontWeight: '500',
+    letterSpacing: -0.9,
+    color: colors.heroText,
+    marginTop: 8,
   },
-  chipButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: colors.peachSoft,
+  heroEmail: {
+    fontSize: 12,
+    color: colors.heroMuted,
+    marginTop: 3,
+  },
+  heroFooter: {
+    borderTopWidth: 1,
+    borderTopColor: colors.heroDivider,
+    marginTop: 14,
+    paddingTop: 10,
+  },
+  heroFooterText: {
+    fontSize: 11,
+    color: colors.heroSubtle,
+  },
+  callout: {
+    padding: 16,
+    backgroundColor: colors.calloutBg,
     borderWidth: 1,
-    borderColor: colors.peachBorder,
+    borderColor: colors.calloutBorder,
+    borderRadius: radii.list,
+    gap: 6,
   },
-  chipPressed: {
-    opacity: 0.8,
-  },
-  chipDisabled: {
-    opacity: 0.5,
-  },
-  chipButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.navy,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-  },
-  actionRowPressed: {
-    opacity: 0.75,
-  },
-  actionCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  actionTitle: {
+  calloutTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: colors.textPrimary,
+    letterSpacing: -0.25,
+    color: colors.ink,
   },
-  actionSubtitle: {
+  calloutCopy: {
+    fontSize: 12,
+    lineHeight: 20,
+    color: colors.muted,
+  },
+  settingsGroup: {
+    gap: 9,
+  },
+  groupHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.15,
+    textTransform: 'uppercase',
+    color: colors.muted,
+  },
+  presetGrid: {
+    gap: 10,
+  },
+  presetOption: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 15,
+    borderRadius: radii.option,
+    borderWidth: 1,
+    borderColor: colors.controlLine,
+    backgroundColor: colors.card,
+  },
+  presetOptionSelected: {
+    borderWidth: 2,
+    borderColor: colors.rust,
+    padding: 14,
+    backgroundColor: colors.selectedBg,
+  },
+  disabledItem: {
+    opacity: 0.6,
+  },
+  presetText: {
+    flex: 1,
+    gap: 4,
+  },
+  presetTitle: {
     fontSize: 13,
-    color: colors.textSecondary,
+    fontWeight: '600',
+    color: colors.ink,
   },
-  signOutContainer: {
+  presetDescription: {
+    fontSize: 12,
+    lineHeight: 19,
+    color: colors.muted,
+  },
+  tile: {
+    width: 35,
+    height: 35,
+    borderRadius: radii.tile,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileWarm: {
+    backgroundColor: colors.tileWarmBg,
+  },
+  tileRust: {
+    backgroundColor: colors.tileRustBg,
+  },
+  tileNavy: {
+    backgroundColor: colors.tileNavyBg,
+  },
+  settingsList: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.list,
+    paddingHorizontal: 14,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    minHeight: 72,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  settingsRowLast: {
+    borderBottomWidth: 0,
+  },
+  rowPressed: {
+    opacity: 0.72,
+  },
+  rowMain: {
+    flex: 1,
+    gap: 3,
+  },
+  rowTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  rowSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted,
+  },
+  signOutBlock: {
     gap: 12,
     marginTop: 4,
   },
-  footerHint: {
+  securityNote: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingTop: 14,
   },
-  footerHintText: {
-    fontSize: 12,
-    color: colors.textMuted,
+  securityNoteText: {
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.muted,
+    flexShrink: 1,
   },
 });

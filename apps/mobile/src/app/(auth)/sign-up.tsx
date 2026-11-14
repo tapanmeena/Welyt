@@ -1,20 +1,23 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerSchema, type RegisterInput } from '@welyt/shared';
-import { Link } from 'expo-router';
-import { useState } from 'react';
+import { Link, useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
-import { FormTextField } from '@/components/auth/FormTextField';
+import { FormTextField, type FormTextInputHandle } from '@/components/auth/FormTextField';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { resolveFormError } from '@/components/auth/form-errors';
 import { useRegisterMutation } from '@/features/auth/use-auth-mutations';
 import { colors } from '@/theme/colors';
 
 export default function SignUpScreen() {
+  const router = useRouter();
   const registerMutation = useRegisterMutation();
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const emailInputRef = useRef<FormTextInputHandle>(null);
+  const passwordInputRef = useRef<FormTextInputHandle>(null);
 
   const {
     control,
@@ -42,13 +45,23 @@ export default function SignUpScreen() {
 
   return (
     <AuthScreenShell
+      eyebrow="Get started"
       title="Create your account"
       subtitle="Set up your Welyt credentials to start tracking your finances."
+      sectionLabel="Account details"
+      backLabel="Sign in"
+      onBack={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/sign-in');
+        }
+      }}
       footer={
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>Already have an account?</Text>
           <Link href="/sign-in" asChild>
-            <Pressable accessibilityRole="link" hitSlop={8}>
+            <Pressable accessibilityRole="link" hitSlop={8} style={styles.textAction}>
               <Text style={styles.linkText}>Sign in</Text>
             </Pressable>
           </Link>
@@ -71,6 +84,9 @@ export default function SignUpScreen() {
             autoComplete="name"
             textContentType="name"
             returnKeyType="next"
+            onSubmitEditing={() => {
+              emailInputRef.current?.focus();
+            }}
             errorMessage={errors.name?.message}
           />
         )}
@@ -81,6 +97,7 @@ export default function SignUpScreen() {
         name="email"
         render={({ field: { onChange, onBlur, value } }) => (
           <FormTextField
+            inputRef={emailInputRef}
             label="Email address"
             value={value}
             onChangeText={onChange}
@@ -92,6 +109,9 @@ export default function SignUpScreen() {
             autoComplete="email"
             textContentType="emailAddress"
             returnKeyType="next"
+            onSubmitEditing={() => {
+              passwordInputRef.current?.focus();
+            }}
             errorMessage={errors.email?.message}
           />
         )}
@@ -102,6 +122,7 @@ export default function SignUpScreen() {
         name="password"
         render={({ field: { onChange, onBlur, value } }) => (
           <FormTextField
+            inputRef={passwordInputRef}
             label="Password"
             value={value}
             onChangeText={onChange}
@@ -140,12 +161,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   footerText: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    fontSize: 12,
+    color: colors.muted,
+  },
+  textAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
   },
   linkText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: colors.navy,
+    color: colors.rust,
   },
 });

@@ -1,12 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { changePasswordSchema, type ChangePasswordInput } from '@welyt/shared';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
-import { FormTextField } from '@/components/auth/FormTextField';
+import { FormTextField, type FormTextInputHandle } from '@/components/auth/FormTextField';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { resolveFormError } from '@/components/auth/form-errors';
 import { useChangePasswordMutation } from '@/features/auth/use-auth-mutations';
@@ -17,6 +17,7 @@ export default function ChangePasswordScreen() {
   const changePasswordMutation = useChangePasswordMutation();
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [bannerSuccess, setBannerSuccess] = useState<string | null>(null);
+  const newPasswordInputRef = useRef<FormTextInputHandle>(null);
 
   const {
     control,
@@ -45,21 +46,28 @@ export default function ChangePasswordScreen() {
     }
   });
 
+  const navigateBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/');
+    }
+  };
+
   return (
     <AuthScreenShell
+      eyebrow="Security"
       title="Change password"
       subtitle="Enter your current password and choose a strong new password."
+      sectionLabel="Password update"
+      backLabel="Workspace"
+      onBack={navigateBack}
       footer={
         <Pressable
           accessibilityRole="button"
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/');
-            }
-          }}
+          onPress={navigateBack}
           hitSlop={8}
+          style={styles.textAction}
         >
           <Text style={styles.linkText}>Back to workspace</Text>
         </Pressable>
@@ -83,6 +91,10 @@ export default function ChangePasswordScreen() {
             autoCorrect={false}
             autoComplete="password"
             textContentType="password"
+            returnKeyType="next"
+            onSubmitEditing={() => {
+              newPasswordInputRef.current?.focus();
+            }}
             errorMessage={errors.currentPassword?.message}
           />
         )}
@@ -93,6 +105,7 @@ export default function ChangePasswordScreen() {
         name="newPassword"
         render={({ field: { onChange, onBlur, value } }) => (
           <FormTextField
+            inputRef={newPasswordInputRef}
             label="New password"
             value={value}
             onChangeText={onChange}
@@ -125,9 +138,14 @@ export default function ChangePasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  textAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
   linkText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: colors.navy,
+    color: colors.rust,
   },
 });

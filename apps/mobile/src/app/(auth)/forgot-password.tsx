@@ -45,11 +45,21 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthScreenShell
+      eyebrow="Account recovery"
       title="Reset your password"
       subtitle="Enter your account email and we will send you a 6-digit password reset code."
+      sectionLabel="Recovery email"
+      backLabel="Sign in"
+      onBack={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/sign-in');
+        }
+      }}
       footer={
         <Link href="/sign-in" asChild>
-          <Pressable accessibilityRole="link" hitSlop={8}>
+          <Pressable accessibilityRole="link" hitSlop={8} style={styles.textAction}>
             <Text style={styles.linkText}>Back to sign in</Text>
           </Pressable>
         </Link>
@@ -93,9 +103,14 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  textAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
   linkText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: colors.navy,
+    color: colors.rust,
   },
 });

@@ -1,12 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { resetPasswordSchema, type ResetPasswordInput } from '@welyt/shared';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
-import { FormTextField } from '@/components/auth/FormTextField';
+import { FormTextField, type FormTextInputHandle } from '@/components/auth/FormTextField';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { resolveFormError } from '@/components/auth/form-errors';
 import { useResetPasswordMutation } from '@/features/auth/use-auth-mutations';
@@ -17,6 +17,8 @@ export default function ResetPasswordScreen() {
   const params = useLocalSearchParams<{ email?: string; code?: string; sent?: string }>();
   const resetMutation = useResetPasswordMutation();
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const codeInputRef = useRef<FormTextInputHandle>(null);
+  const newPasswordInputRef = useRef<FormTextInputHandle>(null);
 
   const initialEmail = typeof params.email === 'string' ? params.email : '';
   const initialCode = typeof params.code === 'string' ? params.code : '';
@@ -58,11 +60,21 @@ export default function ResetPasswordScreen() {
 
   return (
     <AuthScreenShell
+      eyebrow="Account recovery"
       title="Choose a new password"
       subtitle="Enter the 6-digit reset code from your email along with your new password."
+      sectionLabel="Reset credentials"
+      backLabel="Sign in"
+      onBack={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/sign-in');
+        }
+      }}
       footer={
         <Link href="/sign-in" asChild>
-          <Pressable accessibilityRole="link" hitSlop={8}>
+          <Pressable accessibilityRole="link" hitSlop={8} style={styles.textAction}>
             <Text style={styles.linkText}>Back to sign in</Text>
           </Pressable>
         </Link>
@@ -91,6 +103,10 @@ export default function ResetPasswordScreen() {
             autoCorrect={false}
             autoComplete="email"
             textContentType="emailAddress"
+            returnKeyType="next"
+            onSubmitEditing={() => {
+              codeInputRef.current?.focus();
+            }}
             errorMessage={errors.email?.message}
           />
         )}
@@ -101,6 +117,7 @@ export default function ResetPasswordScreen() {
         name="code"
         render={({ field: { onChange, onBlur, value } }) => (
           <FormTextField
+            inputRef={codeInputRef}
             label="6-digit reset code"
             value={value}
             onChangeText={(text) => onChange(text.replace(/\D/g, '').slice(0, 6))}
@@ -110,6 +127,10 @@ export default function ResetPasswordScreen() {
             maxLength={6}
             autoComplete="one-time-code"
             textContentType="oneTimeCode"
+            returnKeyType="next"
+            onSubmitEditing={() => {
+              newPasswordInputRef.current?.focus();
+            }}
             errorMessage={errors.code?.message}
           />
         )}
@@ -120,6 +141,7 @@ export default function ResetPasswordScreen() {
         name="newPassword"
         render={({ field: { onChange, onBlur, value } }) => (
           <FormTextField
+            inputRef={newPasswordInputRef}
             label="New password"
             value={value}
             onChangeText={onChange}
@@ -152,9 +174,14 @@ export default function ResetPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  textAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
   linkText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: colors.navy,
+    color: colors.rust,
   },
 });

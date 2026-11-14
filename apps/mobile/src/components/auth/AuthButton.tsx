@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
-import { colors } from '@/theme/colors';
+import { colors, radii } from '@/theme/colors';
 
 interface AuthButtonProps {
   label: string;
@@ -27,16 +27,18 @@ export function AuthButton({
       style={({ pressed }) => [
         styles.base,
         variant === 'primary' && styles.primary,
+        variant === 'primary' && pressed && !isDisabled && styles.primaryPressed,
         variant === 'secondary' && styles.secondary,
+        variant === 'secondary' && pressed && !isDisabled && styles.secondaryPressed,
         variant === 'danger' && styles.danger,
-        pressed && !isDisabled && styles.pressed,
+        variant === 'danger' && pressed && !isDisabled && styles.dangerPressed,
         isDisabled && styles.disabled,
       ]}
     >
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'secondary' ? colors.navy : colors.surface}
+          color={variant === 'secondary' ? colors.ink : colors.card}
         />
       ) : (
         <Text
@@ -54,38 +56,44 @@ export function AuthButton({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: 46,
+    borderRadius: radii.control,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
   },
   primary: {
-    backgroundColor: colors.navy,
+    backgroundColor: colors.rust,
+  },
+  primaryPressed: {
+    backgroundColor: colors.rustPressed,
   },
   secondary: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.controlLine,
+  },
+  secondaryPressed: {
+    backgroundColor: colors.sand,
   },
   danger: {
-    backgroundColor: colors.error,
+    backgroundColor: colors.danger,
   },
-  pressed: {
-    opacity: 0.88,
+  dangerPressed: {
+    backgroundColor: colors.dangerPressed,
   },
   disabled: {
     opacity: 0.55,
   },
   label: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
   },
   lightLabel: {
-    color: colors.surface,
+    color: '#ffffff',
   },
   secondaryLabel: {
-    color: colors.navy,
+    color: colors.ink,
   },
 });

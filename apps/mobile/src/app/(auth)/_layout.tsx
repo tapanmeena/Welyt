@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { useAuthStore } from '@/features/auth/auth-store';
+import { colors } from '@/theme/colors';
 
 export default function AuthGroupLayout() {
   const status = useAuthStore((state) => state.status);
@@ -9,7 +10,12 @@ export default function AuthGroupLayout() {
   const isEmailVerified = isAuthenticated && user.emailVerifiedAt !== null;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.cream },
+      }}
+    >
       <Stack.Protected
         guard={!isAuthenticated}
         redirectTo={isEmailVerified ? '/' : '/verify-email'}

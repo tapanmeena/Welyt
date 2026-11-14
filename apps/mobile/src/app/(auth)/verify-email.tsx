@@ -1,12 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { verifyEmailSchema, type VerifyEmailInput } from '@welyt/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
-import { FormTextField } from '@/components/auth/FormTextField';
+import { FormTextField, type FormTextInputHandle } from '@/components/auth/FormTextField';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { resolveFormError } from '@/components/auth/form-errors';
 import { useAuthStore } from '@/features/auth/auth-store';
@@ -30,6 +30,7 @@ export default function VerifyEmailScreen() {
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [bannerSuccess, setBannerSuccess] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const codeInputRef = useRef<FormTextInputHandle>(null);
 
   const initialEmail = user?.email ?? (typeof params.email === 'string' ? params.email : '');
   const initialCode = typeof params.code === 'string' ? params.code : '';
@@ -103,12 +104,14 @@ export default function VerifyEmailScreen() {
 
   return (
     <AuthScreenShell
+      eyebrow="Email confirmation"
       title="Verify your email"
       subtitle={
         targetEmail
           ? `Enter the 6-digit verification code sent to ${targetEmail}.`
           : 'Enter your email address and the 6-digit verification code we sent you.'
       }
+      sectionLabel="Verification code"
       footer={
         isSignedIn ? (
           <Pressable
@@ -118,6 +121,7 @@ export default function VerifyEmailScreen() {
               void logoutMutation.mutateAsync();
             }}
             hitSlop={8}
+            style={styles.textAction}
           >
             <Text style={styles.switchAccountText}>Sign out or use a different email</Text>
           </Pressable>
@@ -128,6 +132,7 @@ export default function VerifyEmailScreen() {
               router.replace('/sign-in');
             }}
             hitSlop={8}
+            style={styles.textAction}
           >
             <Text style={styles.switchAccountText}>Back to sign in</Text>
           </Pressable>
@@ -153,6 +158,10 @@ export default function VerifyEmailScreen() {
               autoCorrect={false}
               autoComplete="email"
               textContentType="emailAddress"
+              returnKeyType="next"
+              onSubmitEditing={() => {
+                codeInputRef.current?.focus();
+              }}
               errorMessage={errors.email?.message}
             />
           )}
@@ -164,6 +173,7 @@ export default function VerifyEmailScreen() {
         name="code"
         render={({ field: { onChange, onBlur, value } }) => (
           <FormTextField
+            inputRef={codeInputRef}
             label="6-digit verification code"
             value={value}
             onChangeText={(text) => onChange(text.replace(/\D/g, '').slice(0, 6))}
@@ -213,11 +223,16 @@ export default function VerifyEmailScreen() {
 
 const styles = StyleSheet.create({
   actionsGroup: {
-    gap: 10,
+    gap: 9,
+  },
+  textAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   switchAccountText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: colors.rust,
   },
 });
