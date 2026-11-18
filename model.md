@@ -10,8 +10,10 @@ the modules they need; Accounts is not a prerequisite for Investments, Loans, or
 A universal accounting ledger is not required.
 
 The authentication entities below reflect the existing implementation unless marked proposed.
-Financial entities and additional user preferences are proposed, not implemented database tables.
-Entity fields describe logical records, not final migration definitions.
+Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
+and `fx_rates`. Only INR is seeded. Account operations, live FX ingestion, other financial
+entities, and additional user preferences are not implemented yet. Entity fields below describe
+logical records, not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
 Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
@@ -22,12 +24,15 @@ record does not imply owning the underlying money or securities.
 
 ### First milestone decisions
 
-- Accounts use dated balance snapshots only. Movement tracking, transfers, and reconciliation
-  are deferred.
-- The default reporting currency is INR. Supported account currencies are a separate decision.
+- Accounts use one current balance snapshot per account per local date (`Asia/Kolkata`).
+  Movement tracking, transfers, and reconciliation are deferred.
+- The default reporting currency is INR. Non-INR accounts keep balances in their original
+  currency and use separately stored daily FX rates for INR reporting.
 - Fiscal periods use India's financial year, from April 1 through March 31 of the following
   calendar year. Other fiscal calendars can be added later.
-- Store monetary amounts exactly to two decimal places.
+- Store monetary amounts exactly to two decimal places. FX rates use separate precision.
+- Manual cash restrictions, funds held for others, and account defaults are outside the
+  first milestone.
 - Do not offer restore in v1. JSON and CSV exports remain planned.
 
 ## Module boundaries
@@ -68,9 +73,10 @@ Home and History read these records rather than becoming additional financial so
 
 - Every amount has an explicit currency, directly or unambiguously through its parent.
 - Use exact decimal arithmetic. Do not store financial values as SQLite floating-point numbers.
-- V1 monetary amounts, including balance snapshots, have two fractional digits. Canonical decimal
-  strings remain a proposed representation; encoding and allowed ranges are schema decisions.
-- Future investment quantities, prices, and FX rates need their own precision and rounding rules.
+- V1 stores balance snapshots as signed integer hundredths and daily FX rates as positive
+  integers scaled to eight fractional digits. Use decimal strings at the application boundary.
+- Future investment quantities, prices, and other FX uses need their own precision and rounding
+  rules.
 - Transaction FX preserves original amounts, currency pair, rate, effective time, and source.
 - Reporting conversions use dated rates and expose missing or stale data; never assume a rate of 1.
 - Changing reporting currency changes presentation, not historical amounts or applied transaction FX.
@@ -136,6 +142,7 @@ the overview is incomplete. Re-enabling restores access and eligible overview co
 `FxRate` supports provider observations and user-scoped manual overrides without overwriting
 provider history. `AppliedFx` is an immutable snapshot referenced by financial settlements.
 Rates must be positive; define direction consistently as target units per source unit.
+V1 uses daily foreign-to-INR rates for reporting and does not create `AppliedFx` settlements.
 Features that require market data use external price and FX feeds plus manual overrides.
 Provider selection, override precedence, triangulation, historical coverage, and staleness
 thresholds remain open.
@@ -146,7 +153,7 @@ thresholds remain open.
 
 - `Account`: `id`, `userId`, `name`, `kind`, `currencyId`, `trackingMode`, `purpose`,
   `inNetWorth`, `status`, `notes`
-- `AccountObservation`: `id`, `accountId`, `observedAt`, `balance`, `source`, `notes`
+- `AccountObservation`: `id`, `accountId`, `observedOn`, `balance`, `source`, `notes`
 - `AccountMovement`: `id`, `accountId`, `effectiveDate`, `kind`, `signedAmount`, `status`,
   `description`, optional `reversalOfId`
 - `AccountReconciliation`: `id`, `accountId`, `observationId`, `calculatedBalanceBefore`,
@@ -447,14 +454,11 @@ open.
 
 ### Accounts & Cash v1
 
-1. Decide whether v1 supports non-INR accounts. If it does, define how Home handles balances
-   without an INR conversion rate.
-2. Define the observation timezone and ordering, including same-day observations and how
-   corrections or archiving affect balance history.
-3. Confirm whether manual cash restrictions, funds held for others, and account defaults are
-   part of v1.
-4. Choose an exact amount encoding, allowed ranges, and how to handle inputs with more than
-   two fractional digits.
+1. Select the launch currencies, licensed FX provider, and required historical coverage.
+2. Confirm how long a prior rate may be carried forward before a conversion is unavailable.
+
+The [Accounts & Cash v1 database plan](.copilot-tracking/plans/2026-11-18/accounts-cash-v1-plan.instructions.md)
+proposes the storage encoding, correction rules, and FX selection policy.
 
 ### Later milestones
 
