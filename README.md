@@ -161,8 +161,8 @@ Open **Monthly Plan** from **Income & Plan**. Enter expected net income and fixe
 or saving allocations in INR. A shortfall is shown before saving but does not block the save.
 Each save creates a revision you can revisit.
 
-Routine successes use a brief in-app snackbar. Warnings such as a shortfall stay on the
-screen after the snackbar disappears.
+Routine successes use a brief in-app snackbar. Swipe it left or right to dismiss it early.
+Warnings such as a shortfall stay on the screen after the snackbar disappears.
 
 Use **Copy Previous Month** to prefill a blank month's draft, or enable **Month-start auto-copy**
 to save a copy automatically at the next India-local month boundary. Auto-copy never replaces
