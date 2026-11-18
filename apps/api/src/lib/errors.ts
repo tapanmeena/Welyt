@@ -30,6 +30,10 @@ export class AppError extends Error {
   }
 }
 
+export function fieldValidationError(field: string, message: string): AppError {
+  return new AppError(400, AUTH_ERROR_CODES.VALIDATION_ERROR, message, { [field]: [message] });
+}
+
 export function zodToValidationError(zodError: z.ZodError): AppError {
   const fieldErrors: Record<string, string[]> = {};
 

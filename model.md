@@ -11,8 +11,9 @@ A universal accounting ledger is not required.
 
 The authentication entities below reflect the existing implementation unless marked proposed.
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
-and `fx_rates`. Only INR is seeded. Account operations, live FX ingestion, other financial
-entities, and additional user preferences are not implemented yet. Entity fields below describe
+and `fx_rates`. Only INR is seeded. The backend supports owner-scoped account and snapshot
+operations but does not expose financial API routes yet. Live FX ingestion, other financial
+entities, and additional user preferences are not implemented. Entity fields below describe
 logical records, not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
@@ -171,6 +172,8 @@ thresholds remain open.
 - Initial account kinds are bank, physical cash, e-wallet/prepaid, and brokerage cash.
 - V1 supports only `snapshot_only`. Dated `AccountObservation` records supply balances without
   creating income, spending, or transfer records.
+- Correcting an observation preserves the original and replaces the current balance atomically.
+  Archiving an account makes it read-only and retains the owner's access to its history.
 - Later `movement_tracking` accounts use an opening/reconciled balance plus subsequent posted
   movements.
 - Reconciliation shows the difference and requires an explicit correction or adjustment.
