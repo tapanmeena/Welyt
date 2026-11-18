@@ -25,7 +25,7 @@ const providerQuotesSchema = z.array(
   manualRateSchema.extend({ quoteCurrencyCode: z.literal('INR') }),
 );
 const refreshInputSchema = z.strictObject({
-  rateOn: financialDateSchema,
+  rateOn: financialDateSchema.optional(),
   baseCurrencyCodes: z
     .array(foreignCurrencyCodeSchema)
     .min(1)
@@ -43,7 +43,7 @@ export const fxProviderSourceSchema = z
 export type ManualFxRateInput = z.input<typeof manualRateSchema>;
 
 export interface FxRateRequest {
-  rateOn: string;
+  rateOn?: string;
   baseCurrencyCodes: readonly string[];
   quoteCurrencyCode: 'INR';
 }
@@ -55,10 +55,9 @@ export interface FxRateProvider {
 
 type RateWriteStatus = 'inserted' | 'revised' | 'unchanged';
 
-export interface FxRefreshResult {
-  baseCurrencyCode: string;
-  status: RateWriteStatus | 'missing';
-}
+export type FxRefreshResult = { baseCurrencyCode: string } & (
+  { status: RateWriteStatus; rateOn: string } | { status: 'missing' }
+);
 
 export type StoredFxRateLookup =
   | { status: 'missing' }
@@ -177,18 +176,40 @@ export class FxService {
     rateOn: string,
     baseCurrencyCodes: readonly string[],
   ): Promise<FxRefreshResult[]> {
+    return this.refreshRates(baseCurrencyCodes, parseInput(financialDateSchema, rateOn));
+  }
+
+  async refreshLatestRates(baseCurrencyCodes: readonly string[]): Promise<FxRefreshResult[]> {
+    return this.refreshRates(baseCurrencyCodes);
+  }
+
+  private async refreshRates(
+    baseCurrencyCodes: readonly string[],
+    rateOn?: string,
+  ): Promise<FxRefreshResult[]> {
     const request = parseInput(refreshInputSchema, { rateOn, baseCurrencyCodes });
-    assertNotFuture(request.rateOn, indiaBusinessDate(this.now()), 'rateOn');
+    if (request.rateOn !== undefined) {
+      assertNotFuture(request.rateOn, indiaBusinessDate(this.now()), 'rateOn');
+    }
     for (const code of request.baseCurrencyCodes) {
       assertSupportedCurrency(this.db, code);
     }
 
-    const raw = await this.provider.fetchDailyRates({ ...request, quoteCurrencyCode: 'INR' });
-    const fetchedAt = this.now().toISOString();
+    const raw = await this.provider.fetchDailyRates({
+      baseCurrencyCodes: request.baseCurrencyCodes,
+      quoteCurrencyCode: 'INR',
+      ...(request.rateOn === undefined ? {} : { rateOn: request.rateOn }),
+    });
+    const fetched = this.now();
+    const fetchedAt = fetched.toISOString();
+    const today = indiaBusinessDate(fetched);
     const requested = new Set(request.baseCurrencyCodes);
-    const rates = new Map<string, number>();
+    const rates = new Map<string, { rateOn: string; rateE8: number }>();
     for (const quote of parseInput(providerQuotesSchema, raw)) {
-      if (quote.rateOn !== request.rateOn || !requested.has(quote.baseCurrencyCode)) {
+      if (
+        (request.rateOn !== undefined && quote.rateOn !== request.rateOn) ||
+        !requested.has(quote.baseCurrencyCode)
+      ) {
         throw fieldValidationError(
           'rates',
           'FX quote does not match the requested date or currency pair',
@@ -197,26 +218,26 @@ export class FxService {
       if (rates.has(quote.baseCurrencyCode)) {
         throw fieldValidationError('rates', 'FX provider returned more than one quote for a pair');
       }
-      rates.set(quote.baseCurrencyCode, parseRateE8(quote.rate));
+      assertNotFuture(quote.rateOn, today, 'rateOn');
+      rates.set(quote.baseCurrencyCode, { rateOn: quote.rateOn, rateE8: parseRateE8(quote.rate) });
     }
 
     return this.db.transaction(
       (tx) =>
         request.baseCurrencyCodes.map((baseCurrencyCode): FxRefreshResult => {
-          const rateE8 = rates.get(baseCurrencyCode);
-          if (rateE8 === undefined) {
+          const quote = rates.get(baseCurrencyCode);
+          if (!quote) {
             return { baseCurrencyCode, status: 'missing' };
           }
           const { status } = storeRate(tx, {
             baseCurrencyCode,
-            rateOn: request.rateOn,
-            rateE8,
+            ...quote,
             source: this.source,
             userId: null,
             fetchedAt,
             createdAt: fetchedAt,
           });
-          return { baseCurrencyCode, status };
+          return { baseCurrencyCode, status, rateOn: quote.rateOn };
         }),
       { behavior: 'immediate' },
     );

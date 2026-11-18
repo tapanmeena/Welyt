@@ -15,6 +15,7 @@ const rawEnvSchema = z.object({
   OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(60),
   APP_SCHEME: z.string().trim().min(1).default('welyt'),
   CORS_ORIGINS: z.string().trim().default('*'),
+  FX_AUTO_REFRESH: z.enum(['true', 'false']).default('true'),
   MAILER_PROVIDER: z.enum(['auto', 'smtp', 'console']).default('auto'),
   SMTP_HOST: z.string().trim().min(1).default('smtp.gmail.com'),
   SMTP_PORT: z.coerce.number().int().positive().default(465),
@@ -47,6 +48,7 @@ export interface ApiEnv {
   otpResendCooldownSeconds: number;
   appScheme: string;
   corsOrigins: string[] | true;
+  fxAutoRefresh: boolean;
   mailerProvider: 'smtp' | 'console';
   smtp: SmtpConfig | null;
 }
@@ -128,6 +130,7 @@ export function loadApiEnv(raw: NodeJS.ProcessEnv = process.env): ApiEnv {
     otpResendCooldownSeconds: parsed.OTP_RESEND_COOLDOWN_SECONDS,
     appScheme: parsed.APP_SCHEME,
     corsOrigins,
+    fxAutoRefresh: parsed.FX_AUTO_REFRESH === 'true',
     mailerProvider,
     smtp,
   };

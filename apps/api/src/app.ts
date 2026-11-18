@@ -10,6 +10,9 @@ import { AppError, zodToValidationError } from './lib/errors.ts';
 import { createMailer, type Mailer } from './lib/mailer.ts';
 import { registerAuthRoutes } from './modules/auth/auth.routes.ts';
 import { AuthService } from './modules/auth/auth.service.ts';
+import { FrankfurterProvider, LAUNCH_FX_CURRENCIES } from './modules/fx/frankfurter.provider.ts';
+import { startDailyFxRefresh } from './modules/fx/fx.job.ts';
+import { FxService } from './modules/fx/fx.service.ts';
 import { createAuthGuards } from './plugins/auth-guard.ts';
 
 declare module 'fastify' {
@@ -51,11 +54,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       runMigrations: true,
     });
 
-  if (ownsDatabase) {
-    app.addHook('onClose', async () => {
-      database.close();
+  let stopFxRefresh: (() => Promise<void>) | undefined;
+  if (env.nodeEnv !== 'test' && env.fxAutoRefresh) {
+    const fx = new FxService(database.db, new FrankfurterProvider());
+    app.addHook('onReady', async () => {
+      stopFxRefresh = startDailyFxRefresh(
+        () => fx.refreshLatestRates(LAUNCH_FX_CURRENCIES),
+        app.log,
+      );
     });
   }
+  app.addHook('onClose', async () => {
+    await stopFxRefresh?.();
+    if (ownsDatabase) {
+      database.close();
+    }
+  });
 
   const ownsMailer = !providedMailer;
   const mailer = providedMailer ?? createMailer(env, app.log);

@@ -49,12 +49,27 @@ function addAccount(db: AppDatabase, id: string, currencyCode?: string) {
     .get();
 }
 
-it('migrates a fresh database with INR as the only seeded currency and account default', (t) => {
+it('migrates a fresh database with the launch currency catalog and keeps INR as the default', (t) => {
   const { db, sqlite } = openTestDatabase(t);
   assert.equal(sqlite.pragma('foreign_keys', { simple: true }), 1);
   assert.deepEqual(
-    db.select({ code: currencies.code, minorUnits: currencies.minorUnits }).from(currencies).all(),
-    [{ code: 'INR', minorUnits: 2 }],
+    db
+      .select({ code: currencies.code, minorUnits: currencies.minorUnits })
+      .from(currencies)
+      .orderBy(currencies.code)
+      .all(),
+    [
+      { code: 'AED', minorUnits: 2 },
+      { code: 'AUD', minorUnits: 2 },
+      { code: 'CAD', minorUnits: 2 },
+      { code: 'CHF', minorUnits: 2 },
+      { code: 'EUR', minorUnits: 2 },
+      { code: 'GBP', minorUnits: 2 },
+      { code: 'INR', minorUnits: 2 },
+      { code: 'JPY', minorUnits: 0 },
+      { code: 'SGD', minorUnits: 2 },
+      { code: 'USD', minorUnits: 2 },
+    ],
   );
   assert.deepEqual(db.select().from(fxRates).all(), []);
 
@@ -168,7 +183,6 @@ it('enforces daily FX direction and separates shared rates from user-scoped over
   const { db, sqlite } = openTestDatabase(t);
   addUser(db);
   addUser(db, 'second-owner');
-  db.insert(currencies).values({ code: 'USD', name: 'US Dollar', minorUnits: 2, createdAt }).run();
   assert.equal(addAccount(db, 'usd-checking', 'USD').currencyCode, 'USD');
   const record = sqlite.prepare(
     `INSERT INTO fx_rates

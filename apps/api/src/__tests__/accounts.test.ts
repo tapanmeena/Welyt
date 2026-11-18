@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { it, type TestContext } from 'node:test';
 import { createDatabase } from '../db/client.ts';
-import { currencies, users } from '../db/schema.ts';
+import { users } from '../db/schema.ts';
 import { AccountsValuationService } from '../modules/accounts/accounts-valuation.service.ts';
 import { AccountsService, type CreateAccountInput } from '../modules/accounts/accounts.service.ts';
 import { FxService } from '../modules/fx/fx.service.ts';
@@ -112,7 +112,7 @@ it('changes business dates at India midnight and uses the observation date rathe
 });
 
 it('stores exact signed balances, preserves explicit zero, and validates native currency precision', (t) => {
-  const { db, service } = setup(t);
+  const { service } = setup(t);
   const account = service.createAccount('owner', bankAccount);
   for (const balance of ['1.001', '1e2', '90071992547409.92']) {
     assert.throws(
@@ -136,9 +136,6 @@ it('stores exact signed balances, preserves explicit zero, and validates native 
   assert.equal(zero.balance, '0.00');
   assert.deepEqual(service.getLatestObservation('owner', account.id), zero);
 
-  db.insert(currencies)
-    .values({ code: 'JPY', name: 'Japanese Yen', minorUnits: 0, createdAt: nowIso })
-    .run();
   const foreign = service.createAccount('owner', { ...bankAccount, currencyCode: 'JPY' });
   assert.throws(
     () => service.recordObservation('owner', foreign.id, { ...balanceEntry, balance: '100.01' }),
@@ -241,13 +238,6 @@ it('archives an account without altering its history and prevents more balance w
 
 function setupValuation(t: TestContext, now: () => Date = () => new Date(nowIso)) {
   const { db, service } = setup(t, now);
-  db.insert(currencies)
-    .values([
-      { code: 'USD', name: 'US Dollar', minorUnits: 2, createdAt: nowIso },
-      { code: 'EUR', name: 'Euro', minorUnits: 2, createdAt: nowIso },
-    ])
-    .run();
-
   const source = 'valuation-fixture';
   let quotes: {
     baseCurrencyCode: string;

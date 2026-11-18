@@ -92,6 +92,16 @@ export function formatRateE8(rateE8: number): string {
   return formatScaledDecimal(BigInt(rateE8), FX_RATE_SCALE, 8);
 }
 
+function checkedRateE8(rounded: bigint): number {
+  if (rounded < 1n || rounded > maxSafeInteger) {
+    throw fieldValidationError(
+      'rate',
+      'The FX rate is outside the supported range at eight decimal places',
+    );
+  }
+  return Number(rounded);
+}
+
 export function parseRateE8(rate: string): number {
   const match = ratePattern.exec(rate);
   const whole = match?.[1];
@@ -100,12 +110,20 @@ export function parseRateE8(rate: string): number {
   }
   const fraction = match?.[2] ?? '';
   const scaled = BigInt(whole) * FX_RATE_SCALE + BigInt(fraction.slice(0, 8).padEnd(8, '0'));
-  const rounded = scaled + (fraction.charAt(8) >= '5' ? 1n : 0n);
-  if (rounded < 1n || rounded > maxSafeInteger) {
-    throw fieldValidationError(
-      'rate',
-      'The FX rate is outside the supported range at eight decimal places',
-    );
+  return checkedRateE8(scaled + (fraction.charAt(8) >= '5' ? 1n : 0n));
+}
+
+export function parseInverseRateE8(rate: string): number {
+  const match = ratePattern.exec(rate);
+  const whole = match?.[1];
+  const fraction = match?.[2] ?? '';
+  if (!whole || fraction.length > 30) {
+    throw fieldValidationError('rate', 'Enter a positive decimal FX rate');
   }
-  return Number(rounded);
+  const denominator = BigInt(`${whole}${fraction}`);
+  if (denominator === 0n) {
+    throw fieldValidationError('rate', 'Enter a positive decimal FX rate');
+  }
+  const numerator = FX_RATE_SCALE * 10n ** BigInt(fraction.length);
+  return checkedRateE8((numerator + denominator / 2n) / denominator);
 }

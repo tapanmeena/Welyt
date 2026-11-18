@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { it, type TestContext } from 'node:test';
 import { createDatabase } from '../db/client.ts';
-import { currencies, fxRates, users } from '../db/schema.ts';
+import { fxRates, users } from '../db/schema.ts';
+import { FRANKFURTER_SOURCE, FrankfurterProvider } from '../modules/fx/frankfurter.provider.ts';
+import { startDailyFxRefresh } from '../modules/fx/fx.job.ts';
 import { FxService, type FxRateRequest } from '../modules/fx/fx.service.ts';
 
 const nowIso = '2026-04-15T08:00:00.000Z';
@@ -15,12 +17,6 @@ function quote(rateOn: string, rate: string, baseCurrencyCode = 'USD') {
 function setup(t: TestContext, now: () => Date = () => new Date(nowIso)) {
   const { db, close } = createDatabase(':memory:');
   t.after(close);
-  db.insert(currencies)
-    .values([
-      { code: 'USD', name: 'US Dollar', minorUnits: 2, createdAt: nowIso },
-      { code: 'EUR', name: 'Euro', minorUnits: 2, createdAt: nowIso },
-    ])
-    .run();
   db.insert(users)
     .values(
       ['owner', 'other-owner'].map((id) => ({
@@ -66,7 +62,7 @@ it('rounds provider rates exactly, deduplicates equivalent fetches, and keeps re
   const { db, service, requests, respondWith } = setup(t, () => instant);
   respondWith([quote(quoteDate, '83.123456785')]);
   assert.deepEqual(await service.refreshDailyRates(quoteDate, ['USD']), [
-    { baseCurrencyCode: 'USD', status: 'inserted' },
+    { baseCurrencyCode: 'USD', status: 'inserted', rateOn: quoteDate },
   ]);
   assert.deepEqual(requests, [
     { rateOn: quoteDate, baseCurrencyCodes: ['USD'], quoteCurrencyCode: 'INR' },
@@ -80,14 +76,14 @@ it('rounds provider rates exactly, deduplicates equivalent fetches, and keeps re
 
   respondWith([quote(quoteDate, '83.12345679')]);
   assert.deepEqual(await service.refreshDailyRates(quoteDate, ['USD']), [
-    { baseCurrencyCode: 'USD', status: 'unchanged' },
+    { baseCurrencyCode: 'USD', status: 'unchanged', rateOn: quoteDate },
   ]);
   assert.deepEqual(db.select().from(fxRates).all(), [original]);
 
   instant = new Date('2026-04-15T09:00:00.000Z');
   respondWith([quote(quoteDate, '84')]);
   assert.deepEqual(await service.refreshDailyRates(quoteDate, ['USD']), [
-    { baseCurrencyCode: 'USD', status: 'revised' },
+    { baseCurrencyCode: 'USD', status: 'revised', rateOn: quoteDate },
   ]);
   const history = db.select().from(fxRates).all();
   assert.equal(history.length, 2);
@@ -111,7 +107,7 @@ it('reports missing pairs and leaves non-publication dates empty', async (t) => 
   const { db, service, respondWith } = setup(t);
   respondWith([quote(quoteDate, '83')]);
   assert.deepEqual(await service.refreshDailyRates(quoteDate, ['USD', 'EUR']), [
-    { baseCurrencyCode: 'USD', status: 'inserted' },
+    { baseCurrencyCode: 'USD', status: 'inserted', rateOn: quoteDate },
     { baseCurrencyCode: 'EUR', status: 'missing' },
   ]);
   const published = db.select().from(fxRates).all();
@@ -234,4 +230,73 @@ it('carries forward through seven calendar days without look-ahead or other prov
   });
   assert.deepEqual(service.lookupRate('owner', 'INR'), { status: 'not_required' });
   assert.equal(requests.length, 1);
+});
+
+it('imports one Frankfurter batch with exact reciprocals and the dates actually published', async (t) => {
+  const { db } = setup(t);
+  const urls: string[] = [];
+  let upstream = new Response(
+    'date,base,quote,rate\n2026-04-14,INR,USD,0.03\n2026-04-15,INR,JPY,4\n',
+  );
+  const provider = new FrankfurterProvider(async (url) => {
+    urls.push(String(url));
+    return upstream;
+  });
+  const fx = new FxService(db, provider, () => new Date(nowIso));
+  const codes = ['USD', 'JPY', 'AED'];
+  assert.deepEqual(await fx.refreshLatestRates(codes), [
+    { baseCurrencyCode: 'USD', status: 'inserted', rateOn: '2026-04-14' },
+    { baseCurrencyCode: 'JPY', status: 'inserted', rateOn: '2026-04-15' },
+    { baseCurrencyCode: 'AED', status: 'missing' },
+  ]);
+  assert.deepEqual(urls, [
+    'https://api.frankfurter.dev/v2/rates.csv?base=INR&quotes=USD%2CJPY%2CAED',
+  ]);
+  const usd = fx.lookupRate('owner', 'USD', '2026-04-15');
+  assert.equal(usd.status, 'carried_forward');
+  assert.equal(usd.status === 'carried_forward' && usd.rate.rateE8, 3_333_333_333);
+  assert.equal(usd.status === 'carried_forward' && usd.rate.source, FRANKFURTER_SOURCE);
+  const jpy = fx.lookupRate('owner', 'JPY', '2026-04-15');
+  assert.equal(jpy.status === 'same_day' && jpy.rate.rateE8, 25_000_000);
+  const stored = db.select().from(fxRates).all();
+
+  upstream = new Response('date,base,quote,rate\n2026-04-14,INR,USD,0.04\n2026-04-16,INR,JPY,4\n');
+  await assert.rejects(fx.refreshLatestRates(codes), { code: 'VALIDATION_ERROR' });
+  assert.deepEqual(db.select().from(fxRates).all(), stored);
+
+  upstream = new Response(null, { status: 503 });
+  await assert.rejects(fx.refreshLatestRates(codes), /Frankfurter returned HTTP 503/);
+  assert.deepEqual(db.select().from(fxRates).all(), stored);
+});
+
+it('retries the next evening after a failed startup refresh and stops with the app', async (t) => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: new Date('2026-04-15T16:29:00Z') });
+  const runs: string[] = [];
+  let warnings = 0;
+  const stop = startDailyFxRefresh(
+    async () => {
+      runs.push(new Date().toISOString());
+      if (runs.length === 1) {
+        throw new Error('Temporary provider failure');
+      }
+      return [{ baseCurrencyCode: 'USD', rateOn: '2026-04-15', status: 'inserted' }];
+    },
+    {
+      info() {},
+      warn() {
+        warnings += 1;
+      },
+    },
+  );
+  t.after(stop);
+  await Promise.resolve();
+  assert.equal(warnings, 1);
+  t.mock.timers.tick(59_999);
+  assert.deepEqual(runs, ['2026-04-15T16:29:00.000Z']);
+  t.mock.timers.tick(1);
+  await Promise.resolve();
+  assert.deepEqual(runs, ['2026-04-15T16:29:00.000Z', '2026-04-15T16:30:00.000Z']);
+  await stop();
+  t.mock.timers.tick(2 * 86_400_000);
+  assert.equal(runs.length, 2);
 });

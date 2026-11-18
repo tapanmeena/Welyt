@@ -111,6 +111,20 @@ and `SMTP_PASS` (your 16-character Google App Password) in `apps/api/.env` to de
 verification and password reset emails over Gmail SMTP; when left blank, codes and `welyt://` deep
 links are logged to the API console.
 
+### Daily exchange rates
+
+The running API fetches [Frankfurter v2](https://frankfurter.dev/) reference rates on startup and
+daily at 22:00 India time. No API key is required. The job converts the provider's quotes to INR
+per unit of foreign currency and stores the original publication dates. It sends no account or
+user data to the provider.
+
+The launch catalog contains INR, USD, EUR, GBP, AED, CAD, AUD, SGD, JPY, and CHF. If today's
+quote has not been published, valuation can use a prior quote up to seven calendar days old.
+Missing or older rates leave the INR total incomplete. The job does not backfill history.
+
+Set `FX_AUTO_REFRESH=false` in `apps/api/.env` to disable the job without removing saved rates.
+If several API processes share the database, enable the job on only one of them.
+
 ### Create or refresh a native mobile client
 
 `apps/mobile` does not currently contain generated `android/` or `ios/` directories. Generate them

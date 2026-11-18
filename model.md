@@ -11,11 +11,10 @@ A universal accounting ledger is not required.
 
 The authentication entities below reflect the existing implementation unless marked proposed.
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
-and `fx_rates`. Only INR is seeded. The backend supports owner-scoped account and snapshot
-operations, daily FX ingestion and lookup tested with fixtures, and INR account valuation.
-No live FX provider, scheduler, or financial API routes are wired. Other financial entities
-and additional user preferences are not implemented. Entity fields below describe logical
-records, not SQL column definitions.
+and `fx_rates`. The backend supports owner-scoped account and snapshot operations, daily
+Frankfurter FX ingestion and lookup, and INR account valuation. Financial API routes, other
+financial entities, and additional user preferences are not implemented. Entity fields below
+describe logical records, not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
 Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
@@ -145,10 +144,11 @@ the overview is incomplete. Re-enabling restores access and eligible overview co
 provider history. `AppliedFx` is an immutable snapshot referenced by financial settlements.
 Rates must be positive; define direction consistently as target units per source unit.
 V1 uses daily foreign-to-INR rates for reporting and does not create `AppliedFx` settlements.
-Features that require market data use external price and FX feeds plus manual overrides.
-V1 lookup selects the latest rate on or before the reporting date, with the user's override
-winning on the same date. The backend uses a seven-day carry-forward window pending live
-release confirmation. Provider selection, triangulation, and historical coverage remain open.
+The [Frankfurter v2](https://frankfurter.dev/) feed supplies blended reference rates for USD,
+EUR, GBP, AED, CAD, AUD, SGD, JPY, and CHF. The backend refreshes on startup and at 22:00
+in `Asia/Kolkata`, retaining each rate's published date and accumulating history without
+backfill. Lookup selects the latest rate on or before the reporting date, with the user's
+override winning on the same date. A prior rate is usable for up to seven calendar days.
 
 ## Accounts & Cash
 
@@ -460,13 +460,8 @@ open.
 
 ## Open design decisions
 
-### Accounts & Cash v1
-
-1. Select the launch currencies, licensed FX provider, and required historical coverage.
-2. Confirm how long a prior rate may be carried forward before a conversion is unavailable.
-
 The [Accounts & Cash v1 database plan](.copilot-tracking/plans/2026-11-18/accounts-cash-v1-plan.instructions.md)
-proposes the storage encoding, correction rules, and FX selection policy.
+records the storage encoding, correction rules, and daily FX rollout.
 
 ### Later milestones
 
