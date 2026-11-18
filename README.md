@@ -41,7 +41,7 @@ configuration are not implemented yet.
 │       ├── assets/             # Source logo and raster branding assets
 │       ├── src/
 │       │   ├── app/
-│       │   │   ├── (app)/      # Verified workspace, Accounts & Cash, and password change
+│       │   │   ├── (app)/      # Verified tabs, account detail, and password change
 │       │   │   ├── (auth)/     # Sign-in, sign-up, verify-email, forgot/reset-password routes
 │       │   │   └── _layout.tsx # Gesture root, QueryClientProvider, splash hydration, guards
 │       │   ├── components/auth/# Reusable auth form and shell components
@@ -138,26 +138,32 @@ not return. If it stops, rerun the range to fill remaining gaps without duplicat
 Set `FX_AUTO_REFRESH=false` in `apps/api/.env` to disable the job without removing saved rates.
 If several API processes share the database, enable the job on only one of them.
 
+### Navigate the app
+
+Sign in with a verified email to see **Home**, **Accounts**, **Plan**, and **More**.
+**Plan** opens Monthly Plan and links to Income History. **More** contains your profile,
+financial preferences, password change, and sign-out controls. Account details and open
+editors hide the tab bar.
+
 ### Use Accounts & Cash
 
-Start the API and mobile app, sign in with a verified email, then open **Accounts & Cash** in
-**Workspace**. Choose a currency when creating an account. Open the account to record
-a dated balance in that currency, review its history, or correct a snapshot. Corrections
-retain the original balance in history, and archived accounts are read-only.
+Open **Accounts** and choose a currency when creating an account. Open the account to record
+a dated balance in that currency, review its history, or correct a snapshot. Corrections retain
+the original balance in history, and archived accounts are read-only.
 
-The Workspace cash summary values included active accounts in INR. It shows the report date,
+The Home cash summary values included active accounts in INR. It shows the report date,
 the dates of exchange rates used, and a subtotal when some accounts cannot be valued.
 
 ### Track actual income
 
-Open **Income & Plan** from **Workspace** to record or correct receipts and review April-to-March
+Open **Plan** and select **Income History** to record or correct receipts and review April-to-March
 history. Receipts stay in their original currency. The report uses the latest stored FX rate
 on or before each receipt date and labels missing or stale rates as incomplete. Recording income
 does not change account balances. If the receipt migration is pending, run `pnpm run api:db:migrate`.
 
 ### Plan a month
 
-Open **Monthly Plan** from **Income & Plan**. Enter expected net income and fixed, flexible,
+Open **Plan** in the bottom navigation. Enter expected net income and fixed, flexible,
 or saving allocations in INR. A shortfall is shown before saving but does not block the save.
 Each save creates a revision you can revisit.
 

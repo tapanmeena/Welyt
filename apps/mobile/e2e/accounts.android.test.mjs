@@ -234,7 +234,7 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
       await device.enter('Email address', api.credentials.email);
       await device.enter('Password', api.credentials.password);
       await device.tap('Sign in', { scroll: true });
-      await device.expect(fixtureName, 'No accounts included in INR reporting');
+      await device.expect('No accounts included in INR reporting', 'Accounts', 'Plan', 'More');
     }))
   ) {
     t.diagnostic(`Isolated Metro output:\n${metro.logTail()}`);
@@ -244,21 +244,46 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
   if (
     !(await step(
       t,
+      'keeps navigation on main screens and returns from focused screens',
+      async () => {
+        await device.tap('More');
+        await device.expect(fixtureName);
+        await device.tap('Change password', { scroll: true });
+        await device.expect('Current password');
+        await device.expectHidden('Accounts');
+        await device.tap('Back to More');
+        await device.expect('Security & sessions');
+        await device.tap('Plan');
+        await device.expect('Monthly Plan', 'No plan saved for this month.');
+        await device.tap('Create plan');
+        await device.expect('Expected net income (INR)');
+        await device.expectHidden('More');
+        await device.shell('input', 'keyevent', 'KEYCODE_BACK');
+        await device.expect('Create plan', 'More');
+        await device.tap('Home');
+      },
+    ))
+  )
+    return;
+
+  if (
+    !(await step(
+      t,
       'reports a dated INR total and marks missing FX as an incomplete cash subtotal',
       async () => {
-        await device.tap('Accounts & Cash', { scroll: true });
+        await device.tap('Accounts');
         await recordBalance(device, 'Rupee cash', 'INR', '100.00');
         await recordBalance(device, 'Dollar travel', 'USD', '2.00');
-        await device.tap('Back to Workspace');
+        await device.tap('Home');
         await device.expect(
           'Cash total',
           'INR 262.50',
           `USD to INR: ${api.rateOn} (Frankfurter, 1 day old)`,
         );
 
-        await device.tap('Accounts & Cash', { scroll: true });
+        await device.tap('Accounts');
         await recordBalance(device, 'Euro reserve', 'EUR', '10.00');
-        await device.tap('Back to Workspace');
+        await device.tap('Home');
         await device.expect(
           'Known cash subtotal',
           'INR 262.50',
@@ -275,17 +300,18 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
       t,
       'preserves a corrected signed balance and restores the session after a cold launch',
       async () => {
-        await device.tap('Accounts & Cash', { scroll: true });
+        await device.tap('Accounts');
         await device.tap('Dollar travel, USD', { scroll: true });
+        await device.expectHidden('More');
         await device.tap(/^Correct balance for /, { scroll: true });
         await device.tap('Add minus sign', { scroll: true });
         await device.tap('Save correction', { scroll: true });
         await device.expect('Superseded', 'USD 2.00', 'USD -2.00');
-        await device.tap('Back to Accounts');
-        await device.tap('Back to Workspace');
+        await device.shell('input', 'keyevent', 'KEYCODE_BACK');
+        await device.tap('Home');
         await device.expect('Known cash subtotal', 'INR -62.50');
         await device.coldRestart(metro.origin);
-        await device.expectWithin(55_000, fixtureName, 'Known cash subtotal', 'INR -62.50');
+        await device.expectWithin(55_000, 'More', 'Known cash subtotal', 'INR -62.50');
       },
     ))
   )
@@ -296,7 +322,8 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
       t,
       'records and corrects income, browses fiscal history, and leaves cash unchanged',
       async () => {
-        await device.tap('Income & Plan', { scroll: true });
+        await device.tap('Plan');
+        await device.tap('Income History');
         await device.expect('No income receipts in this financial year.');
         await device.tap('Record income');
         await device.enter('Income type', 'Freelance');
@@ -307,6 +334,10 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
         await device.expect('Receipt recorded.', 'Financial year total', 'INR 162.50');
         await device.tap('Previous year');
         await device.expect('No income receipts in this financial year.');
+        await device.tap('Home');
+        await device.expect('Known cash subtotal', 'INR -62.50');
+        await device.tap('Plan');
+        await device.expect('Income History', 'No income receipts in this financial year.');
         await device.tap('Next year');
         await device.expect('Financial year total', 'INR 162.50');
         await device.tap('Correct receipt', { scroll: true });
@@ -314,7 +345,7 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
         await device.enter('Notes (optional)', 'Correction fixture');
         await device.tap('Save correction', { scroll: true });
         await device.expect('Receipt corrected.', 'Financial year total', 'INR 162.50');
-        await device.tap('Back to Workspace');
+        await device.tap('Home');
         await device.expect('Known cash subtotal', 'INR -62.50');
       },
     ))
@@ -325,7 +356,7 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
     t,
     'saves a shortfall, copies a blank month, and keeps actual receipts and cash unchanged',
     async () => {
-      await device.tap('Income & Plan', { scroll: true });
+      await device.tap('Plan');
       await device.tap('Monthly Plan', { scroll: true });
       await device.expect('No plan saved for this month.');
       await device.tap('Create plan');
@@ -346,10 +377,11 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
       await device.expect('Plan saved.', 'Copied from the previous month');
       await device.tap('Enable auto-copy', { scroll: true });
       await device.expect('Disable auto-copy');
-      await device.tap('Back to Income History');
+      await device.tap('Income History');
       await device.expect('Financial year total', 'INR 162.50');
-      await device.tap('Back to Workspace');
+      await device.tap('Home');
       await device.expect('Known cash subtotal', 'INR -62.50');
+      await device.tap('More');
       await device.tap('Sign out', { scroll: true });
       await device.expect('Welcome back');
     },

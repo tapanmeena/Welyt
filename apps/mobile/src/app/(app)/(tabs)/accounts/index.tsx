@@ -2,11 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import type { AccountDto } from '@welyt/shared';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Wallet } from 'lucide-react-native';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
+import { useWorkspaceEditor } from '@/components/navigation/WorkspaceNavigation';
 import { AccountForm } from '@/features/accounts/AccountForm';
 import {
   AccountsShell,
@@ -60,6 +61,8 @@ function AccountsList({ userId }: { userId: string }) {
   const showSuccess = useSuccessSnackbar();
   const accounts = useQuery(accountsQueries.list(userId));
   const [adding, setAdding] = useState(false);
+  const closeEditor = useCallback(() => setAdding(false), []);
+  useWorkspaceEditor(adding, closeEditor);
 
   if (adding) {
     return (
@@ -68,15 +71,15 @@ function AccountsList({ userId }: { userId: string }) {
         title="Add account"
         subtitle="Choose the currency in which you hold this balance."
         backLabel="Accounts"
-        onBack={() => setAdding(false)}
+        onBack={closeEditor}
       >
         <AccountForm
           userId={userId}
           onSaved={() => {
             showSuccess('Account created. Open it to record your first balance.');
-            setAdding(false);
+            closeEditor();
           }}
-          onCancel={() => setAdding(false)}
+          onCancel={closeEditor}
         />
       </AccountsShell>
     );
@@ -91,8 +94,6 @@ function AccountsList({ userId }: { userId: string }) {
     <AccountsShell
       title="Accounts & Cash"
       subtitle="Track dated balances in each account's original currency."
-      backLabel="Workspace"
-      onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
     >
       <AuthButton label="Add account" onPress={() => setAdding(true)} />
       {accounts.isError ? (

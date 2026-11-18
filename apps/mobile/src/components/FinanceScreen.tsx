@@ -1,8 +1,9 @@
 import { ArrowLeft } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WorkspaceNavigationContext } from '@/components/navigation/WorkspaceNavigation';
 import { colors, radii } from '@/theme/colors';
 
 export function FinanceScreen({
@@ -13,24 +14,28 @@ export function FinanceScreen({
   children,
 }: {
   title: string;
-  subtitle: string;
-  backLabel: string;
-  onBack: () => void;
+  subtitle?: string;
+  backLabel?: string;
+  onBack?: () => void;
   children: ReactNode;
 }) {
+  const tabBarVisible = useContext(WorkspaceNavigationContext)?.tabBarVisible;
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={[styles.stage, styles.toolbar]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Back to ${backLabel}`}
-          onPress={onBack}
-          style={({ pressed }) => [styles.back, pressed && financeStyles.pressed]}
-        >
-          <ArrowLeft size={17} color={colors.rust} strokeWidth={1.9} />
-          <Text style={styles.backText}>{backLabel}</Text>
-        </Pressable>
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={tabBarVisible ? ['top'] : ['top', 'bottom']}>
+      {onBack && backLabel ? (
+        <View style={[styles.stage, styles.toolbar]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Back to ${backLabel}`}
+            onPress={onBack}
+            style={({ pressed }) => [styles.back, pressed && financeStyles.pressed]}
+          >
+            <ArrowLeft size={17} color={colors.rust} strokeWidth={1.9} />
+            <Text style={styles.backText}>{backLabel}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <KeyboardAwareScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -43,7 +48,7 @@ export function FinanceScreen({
             <Text accessibilityRole="header" style={styles.title}>
               {title}
             </Text>
-            <Text style={financeStyles.muted}>{subtitle}</Text>
+            {subtitle ? <Text style={financeStyles.muted}>{subtitle}</Text> : null}
           </View>
           {children}
         </View>

@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { indiaBusinessDate, shiftPlanMonth, type MonthlyPlanDto } from '@welyt/shared';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { FinanceScreen, financeStyles as styles } from '@/components/FinanceScreen';
 import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
+import { useWorkspaceEditor } from '@/components/navigation/WorkspaceNavigation';
 import { displayBalance } from '@/features/accounts/format-balance';
 import { useAuthStore } from '@/features/auth/auth-store';
 import {
@@ -82,6 +83,8 @@ function MonthlyPlanView({ userId }: { userId: string }) {
   const [revision, setRevision] = useState<number>();
   const [editor, setEditor] = useState<{ initial: MonthlyPlanDto | null } | null>(null);
   const history = useQuery(monthlyPlanQuery(userId, month, revision));
+  const closeEditor = useCallback(() => setEditor(null), []);
+  useWorkspaceEditor(editor !== null, closeEditor);
   const previousMonth = shiftPlanMonth(month, -1);
   const nextMonth = shiftPlanMonth(month, 1);
   const heading = monthLabel(month);
@@ -94,15 +97,15 @@ function MonthlyPlanView({ userId }: { userId: string }) {
         title={`Plan ${heading}`}
         subtitle="Enter planned amounts in INR. This does not change receipts or cash."
         backLabel="Monthly Plan"
-        onBack={() => setEditor(null)}
+        onBack={closeEditor}
       >
         <MonthlyPlanEditor
           userId={userId}
           month={month}
           initial={editor.initial}
-          onCancel={() => setEditor(null)}
+          onCancel={closeEditor}
           onSaved={() => {
-            setEditor(null);
+            closeEditor();
             setRevision(undefined);
             showSuccess('Plan saved.');
           }}
@@ -121,9 +124,12 @@ function MonthlyPlanView({ userId }: { userId: string }) {
     <FinanceScreen
       title="Monthly Plan"
       subtitle="Forecast income and allocate it without affecting receipts or cash."
-      backLabel="Income History"
-      onBack={() => (router.canGoBack() ? router.back() : router.replace('/income'))}
     >
+      <AuthButton
+        label="Income History"
+        variant="secondary"
+        onPress={() => router.navigate('/income')}
+      />
       <View style={styles.card}>
         <Text accessibilityRole="header" style={styles.heading}>
           {heading}

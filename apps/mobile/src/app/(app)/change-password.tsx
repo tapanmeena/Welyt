@@ -50,7 +50,7 @@ export default function ChangePasswordScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/');
+      router.replace('/more');
     }
   };
 
@@ -60,7 +60,7 @@ export default function ChangePasswordScreen() {
       title="Change password"
       subtitle="Enter your current password and choose a strong new password."
       sectionLabel="Password update"
-      backLabel="Workspace"
+      backLabel="More"
       onBack={navigateBack}
       footer={
         <Pressable
@@ -69,7 +69,7 @@ export default function ChangePasswordScreen() {
           hitSlop={8}
           style={styles.textAction}
         >
-          <Text style={styles.linkText}>Back to workspace</Text>
+          <Text style={styles.linkText}>Back to More</Text>
         </Pressable>
       }
     >

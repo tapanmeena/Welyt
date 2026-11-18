@@ -7,12 +7,13 @@ import {
   type IncomeReceiptValuationDto,
 } from '@welyt/shared';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { FinanceScreen, financeStyles as styles } from '@/components/FinanceScreen';
 import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
+import { useWorkspaceEditor } from '@/components/navigation/WorkspaceNavigation';
 import { displayBalance } from '@/features/accounts/format-balance';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { IncomeReceiptForm } from '@/features/income/IncomeReceiptForm';
@@ -115,6 +116,8 @@ function IncomeList({ userId }: { userId: string }) {
   const [year, setYear] = useState(currentYear);
   const [edit, setEdit] = useState<{ original: IncomeReceiptDto | null } | null>(null);
   const history = useQuery(incomeHistoryQuery(userId, year));
+  const closeEditor = useCallback(() => setEdit(null), []);
+  useWorkspaceEditor(edit !== null, closeEditor);
 
   if (edit) {
     return (
@@ -122,17 +125,17 @@ function IncomeList({ userId }: { userId: string }) {
         key={edit.original?.id ?? 'new'}
         title={edit.original ? 'Correct receipt' : 'Record income'}
         subtitle="Record money actually received. This does not change account balances."
-        backLabel="Income & Plan"
-        onBack={() => setEdit(null)}
+        backLabel="Income History"
+        onBack={closeEditor}
       >
         <IncomeReceiptForm
           userId={userId}
           original={edit.original}
-          onCancel={() => setEdit(null)}
+          onCancel={closeEditor}
           onSaved={(saved) => {
             setYear(fiscalYearStart(saved.receivedDate));
             showSuccess(edit.original ? 'Receipt corrected.' : 'Receipt recorded.');
-            setEdit(null);
+            closeEditor();
           }}
         />
       </FinanceScreen>
@@ -146,15 +149,13 @@ function IncomeList({ userId }: { userId: string }) {
   const report = history.data;
   return (
     <FinanceScreen
-      title="Income & Plan"
+      title="Income History"
       subtitle="Review actual receipts by financial year. INR figures use the FX rate available on the date received."
-      backLabel="Workspace"
-      onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
     >
       <AuthButton
         label="Monthly Plan"
         variant="secondary"
-        onPress={() => router.push('/monthly-plan')}
+        onPress={() => router.navigate('/monthly-plan')}
       />
       <AuthButton label="Record income" onPress={() => setEdit({ original: null })} />
       <View style={styles.card}>

@@ -18,7 +18,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
-import { CashSummary } from '@/features/accounts/CashSummary';
 import { authApi } from '@/features/auth/auth-api';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { useLogoutAllMutation, useLogoutMutation } from '@/features/auth/use-auth-mutations';
@@ -41,7 +40,7 @@ const DEBT_OPTIONS: readonly {
   },
 ];
 
-export default function HomeScreen() {
+export default function MoreScreen() {
   const router = useRouter();
   const showSuccess = useSuccessSnackbar();
   const user = useAuthStore((state) => state.user);
@@ -66,18 +65,18 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.toolbar}>
         <View style={styles.toolbarBrand}>
           <View style={styles.brandMark}>
             <Image
-              source={require('../../../assets/icon.png')}
+              source={require('../../../../assets/icon.png')}
               style={styles.logo}
               accessibilityLabel="Welyt logo"
             />
           </View>
           <Text style={styles.toolbarTitle} accessibilityRole="header">
-            Workspace
+            More
           </Text>
         </View>
         <View style={styles.verifiedBadge}>
@@ -104,17 +103,7 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <CashSummary userId={user.id} />
-
           <StatusBanner tone="error" message={feedback} />
-
-          <View style={styles.callout}>
-            <Text style={styles.calloutTitle}>Make this workspace yours.</Text>
-            <Text style={styles.calloutCopy}>
-              Your session is encrypted on this device and synchronized with your Welyt account
-              conventions.
-            </Text>
-          </View>
 
           <View style={styles.settingsGroup}>
             <Text style={styles.groupHeading}>Financial modules</Text>
@@ -122,7 +111,7 @@ export default function HomeScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Accounts & Cash"
-                onPress={() => router.push('/accounts')}
+                onPress={() => router.navigate('/accounts')}
                 style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
               >
                 <View style={[styles.tile, styles.tileNavy]}>
@@ -137,7 +126,7 @@ export default function HomeScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Income & Plan"
-                onPress={() => router.push('/income')}
+                onPress={() => router.navigate('/income')}
                 style={({ pressed }) => [
                   styles.settingsRow,
                   styles.settingsRowLast,
@@ -395,25 +384,6 @@ const styles = StyleSheet.create({
   heroFooterText: {
     fontSize: 11,
     color: colors.heroSubtle,
-  },
-  callout: {
-    padding: 16,
-    backgroundColor: colors.calloutBg,
-    borderWidth: 1,
-    borderColor: colors.calloutBorder,
-    borderRadius: radii.list,
-    gap: 6,
-  },
-  calloutTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: -0.25,
-    color: colors.ink,
-  },
-  calloutCopy: {
-    fontSize: 12,
-    lineHeight: 20,
-    color: colors.muted,
   },
   settingsGroup: {
     gap: 9,

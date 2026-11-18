@@ -54,7 +54,13 @@ function SwipeableSnackbar({ text, onDismiss }: { text: string; onDismiss: () =>
   );
 }
 
-export function SuccessSnackbarProvider({ children }: { children: ReactNode }) {
+export function SuccessSnackbarProvider({
+  children,
+  bottomOffset = 0,
+}: {
+  children: ReactNode;
+  bottomOffset?: number;
+}) {
   const { bottom, left, right } = useSafeAreaInsets();
   const nextId = useRef(0);
   const [message, setMessage] = useState<Message | null>(null);
@@ -79,7 +85,10 @@ export function SuccessSnackbarProvider({ children }: { children: ReactNode }) {
         {children}
         <View
           pointerEvents="box-none"
-          style={[styles.overlay, { bottom: bottom + 12, left: left + 16, right: right + 16 }]}
+          style={[
+            styles.overlay,
+            { bottom: bottom + bottomOffset + 12, left: left + 16, right: right + 16 },
+          ]}
         >
           <View role="status" accessibilityLiveRegion="polite" pointerEvents="box-none">
             {message ? (
