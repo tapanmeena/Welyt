@@ -16,6 +16,7 @@
     "api:test": "pnpm run shared:build && pnpm --filter welyt-api run test",
     "api:db:generate": "pnpm --filter welyt-api run db:generate",
     "api:db:migrate": "pnpm run shared:build && pnpm --filter welyt-api run db:migrate",
+    "api:fx:backfill": "pnpm run shared:build && pnpm --filter welyt-api run fx:backfill",
     "test": "pnpm run api:test",
     "typecheck": "pnpm -r run typecheck",
     "lint": "pnpm -r run lint",

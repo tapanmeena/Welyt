@@ -9,6 +9,7 @@
     "start": "node --env-file-if-exists=.env dist/server.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env src/db/migrate.ts",
+    "fx:backfill": "node --env-file-if-exists=.env src/db/backfill-fx.ts",
     "test": "node --test src/__tests__/*.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

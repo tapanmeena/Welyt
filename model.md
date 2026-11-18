@@ -147,9 +147,11 @@ Rates must be positive; define direction consistently as target units per source
 V1 uses daily foreign-to-INR rates for reporting and does not create `AppliedFx` settlements.
 The [Frankfurter v2](https://frankfurter.dev/) feed supplies blended reference rates for USD,
 EUR, GBP, AED, CAD, AUD, SGD, JPY, and CHF. The backend refreshes on startup and at 22:00
-in `Asia/Kolkata`, retaining each rate's published date and accumulating history without
-backfill. Lookup selects the latest rate on or before the reporting date, with the user's
-override winning on the same date. A prior rate is usable for up to seven calendar days.
+in `Asia/Kolkata`, retaining each rate's published date. The operator-run
+[historical import](README.md#daily-exchange-rates) fills missing shared rates from April 1,
+2020 where available, without changing existing rates. Lookup selects the latest rate on or
+before the reporting date, with the user's override winning on the same date. A prior rate
+is usable for up to seven calendar days.
 
 ## Accounts & Cash
 

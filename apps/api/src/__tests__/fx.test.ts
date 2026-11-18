@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { it, type TestContext } from 'node:test';
 import { createDatabase } from '../db/client.ts';
 import { fxRates, users } from '../db/schema.ts';
-import { FRANKFURTER_SOURCE, FrankfurterProvider } from '../modules/fx/frankfurter.provider.ts';
+import {
+  FRANKFURTER_SOURCE,
+  FrankfurterProvider,
+  LAUNCH_FX_CURRENCIES,
+} from '../modules/fx/frankfurter.provider.ts';
+import { FxBackfillError, backfillFrankfurterRates } from '../modules/fx/fx.backfill.ts';
 import { startDailyFxRefresh } from '../modules/fx/fx.job.ts';
 import { FxService, type FxRateRequest } from '../modules/fx/fx.service.ts';
 
@@ -267,6 +272,174 @@ it('imports one Frankfurter batch with exact reciprocals and the dates actually 
   upstream = new Response(null, { status: 503 });
   await assert.rejects(fx.refreshLatestRates(codes), /Frankfurter returned HTTP 503/);
   assert.deepEqual(db.select().from(fxRates).all(), stored);
+});
+
+it('previews and backfills the first available date without overwriting existing rates', async (t) => {
+  const { db } = setup(t);
+  const provider = new FrankfurterProvider(async (input) => {
+    const url = new URL(String(input));
+    assert.equal(url.searchParams.get('base'), 'INR');
+    assert.equal(url.searchParams.get('quotes'), LAUNCH_FX_CURRENCIES.join(','));
+    assert.equal(url.searchParams.get('from'), '2020-04-01');
+    assert.equal(url.searchParams.get('to'), '2020-04-03');
+    return new Response('date,base,quote,rate\n2020-04-03,INR,USD,0.02\n2020-04-02,INR,USD,0.03\n');
+  });
+  const now = () => new Date(nowIso);
+  const fx = new FxService(db, provider, now);
+  const manual = fx.setManualRate('owner', {
+    baseCurrencyCode: 'USD',
+    rateOn: '2020-04-02',
+    rate: '92',
+  });
+  const saved = db
+    .insert(fxRates)
+    .values({
+      id: 'existing-daily-rate',
+      source: FRANKFURTER_SOURCE,
+      baseCurrencyCode: 'USD',
+      quoteCurrencyCode: 'INR',
+      rateOn: '2020-04-03',
+      rateE8: 8_100_000_000,
+      fetchedAt: nowIso,
+      createdAt: nowIso,
+    })
+    .returning()
+    .get();
+  const range = { from: '2020-04-01', to: '2020-04-03' };
+
+  const preview = await backfillFrankfurterRates(db, provider, { ...range, dryRun: true }, now);
+  assert.equal(preview.daysChecked, 3);
+  assert.deepEqual(
+    preview.currencies.find(({ currencyCode }) => currencyCode === 'USD'),
+    {
+      currencyCode: 'USD',
+      firstRateOn: '2020-04-02',
+      lastRateOn: '2020-04-03',
+      available: 2,
+      existing: 1,
+      newRates: 1,
+    },
+  );
+  assert.deepEqual(db.select().from(fxRates).all(), [manual, saved]);
+
+  assert.deepEqual(await backfillFrankfurterRates(db, provider, range, now), preview);
+  const imported = db.select().from(fxRates).all();
+  assert.equal(imported.length, 3);
+  assert.deepEqual(
+    imported.find(({ id }) => id === manual.id),
+    manual,
+  );
+  assert.deepEqual(
+    imported.find(({ id }) => id === saved.id),
+    saved,
+  );
+  const historical = imported.find((row) => row.userId === null && row.rateOn === '2020-04-02');
+  assert.equal(historical?.rateE8, 3_333_333_333);
+  assert.equal(historical.fetchedAt, nowIso);
+  const lookup = fx.lookupRate('owner', 'USD', '2020-04-02');
+  assert.equal(lookup.status === 'same_day' && lookup.rate.id, manual.id);
+
+  const rerun = await backfillFrankfurterRates(db, provider, range, now);
+  assert.ok(rerun.currencies.every(({ newRates }) => newRates === 0));
+  assert.deepEqual(db.select().from(fxRates).all(), imported);
+});
+
+it('continues past an unavailable window and never invents dated rates', async (t) => {
+  const { db } = setup(t);
+  const windows: [string | null, string | null][] = [];
+  const provider = new FrankfurterProvider(async (input) => {
+    const { searchParams } = new URL(String(input));
+    windows.push([searchParams.get('from'), searchParams.get('to')]);
+    return new Response(
+      searchParams.get('from') === '2020-04-01'
+        ? 'date,base,quote,rate\n'
+        : 'date,base,quote,rate\n2020-05-04,INR,AED,0.25\n',
+    );
+  });
+  const summary = await backfillFrankfurterRates(
+    db,
+    provider,
+    {
+      from: '2020-04-01',
+      to: '2020-05-04',
+    },
+    () => new Date(nowIso),
+  );
+  assert.deepEqual(windows, [
+    ['2020-04-01', '2020-05-01'],
+    ['2020-05-02', '2020-05-04'],
+  ]);
+  assert.equal(summary.daysChecked, 34);
+  const aed = summary.currencies.find(({ currencyCode }) => currencyCode === 'AED');
+  assert.equal(aed?.firstRateOn, '2020-05-04');
+  assert.equal(aed.newRates, 1);
+  const stored = db.select().from(fxRates).all();
+  assert.deepEqual(
+    stored.map(({ baseCurrencyCode, rateOn, rateE8 }) => ({ baseCurrencyCode, rateOn, rateE8 })),
+    [{ baseCurrencyCode: 'AED', rateOn: '2020-05-04', rateE8: 400_000_000 }],
+  );
+});
+
+it('keeps completed chunks and reports progress when a later historical window fails', async (t) => {
+  const { db } = setup(t);
+  let laterResponse = new Response(null, { status: 503 });
+  const provider = new FrankfurterProvider(async (input) => {
+    const { searchParams } = new URL(String(input));
+    return searchParams.get('from') === '2020-04-01'
+      ? new Response('date,base,quote,rate\n2020-04-01,INR,USD,0.02\n')
+      : laterResponse;
+  });
+  const run = () =>
+    backfillFrankfurterRates(
+      db,
+      provider,
+      {
+        from: '2020-04-01',
+        to: '2020-05-04',
+      },
+      () => new Date(nowIso),
+    );
+
+  await assert.rejects(run, (error) => {
+    assert.ok(error instanceof FxBackfillError);
+    assert.match(error.message, /2020-05-02 through 2020-05-04: Frankfurter returned HTTP 503/);
+    assert.equal(error.summary.daysChecked, 31);
+    assert.equal(
+      error.summary.currencies.find(({ currencyCode }) => currencyCode === 'USD')?.newRates,
+      1,
+    );
+    return true;
+  });
+  const completed = db.select().from(fxRates).all();
+  assert.equal(completed.length, 1);
+
+  for (const invalidRow of [
+    '2020-05-02,INR,EUR,0.02', // Same pair and date as the first row.
+    '2020-05-01,INR,JPY,4', // Outside this chunk.
+    '2020-05-02,INR,MXN,0.25', // Not requested.
+    '2020-05-02,INR,JPY,0', // Invalid reciprocal.
+  ]) {
+    laterResponse = new Response(`date,base,quote,rate\n2020-05-02,INR,EUR,0.01\n${invalidRow}\n`);
+    await assert.rejects(run, /Historical FX backfill failed for 2020-05-02 through 2020-05-04/);
+    assert.deepEqual(db.select().from(fxRates).all(), completed);
+  }
+});
+
+it('rejects invalid date bounds before requesting historical rates', async (t) => {
+  const { db } = setup(t);
+  const provider = new FrankfurterProvider(async () => {
+    assert.fail('Invalid date ranges must not reach Frankfurter');
+  });
+  const now = () => new Date(nowIso);
+  for (const range of [
+    { from: '2020-02-30', to: '2020-04-01' },
+    { from: '2020-04-02', to: '2020-04-01' },
+    { from: '2020-04-01', to: '2026-04-16' },
+  ]) {
+    await assert.rejects(backfillFrankfurterRates(db, provider, range, now), {
+      code: 'VALIDATION_ERROR',
+    });
+  }
 });
 
 it('retries the next evening after a failed startup refresh and stops with the app', async (t) => {

@@ -31,13 +31,34 @@ export class FrankfurterProvider implements FxRateProvider {
     this.fetcher = fetcher;
   }
 
-  async fetchDailyRates({ rateOn, baseCurrencyCodes, quoteCurrencyCode }: FxRateRequest) {
-    const url = new URL('https://api.frankfurter.dev/v2/rates.csv');
-    url.searchParams.set('base', quoteCurrencyCode);
-    url.searchParams.set('quotes', baseCurrencyCodes.join(','));
+  fetchDailyRates({ rateOn, baseCurrencyCodes, quoteCurrencyCode }: FxRateRequest) {
+    const query = new URLSearchParams({
+      base: quoteCurrencyCode,
+      quotes: baseCurrencyCodes.join(','),
+    });
     if (rateOn !== undefined) {
-      url.searchParams.set('date', rateOn);
+      query.set('date', rateOn);
     }
+    return this.fetchRates(query);
+  }
+
+  fetchHistoricalRates({
+    from,
+    to,
+    baseCurrencyCodes,
+  }: {
+    from: string;
+    to: string;
+    baseCurrencyCodes: readonly string[];
+  }) {
+    return this.fetchRates(
+      new URLSearchParams({ base: 'INR', quotes: baseCurrencyCodes.join(','), from, to }),
+    );
+  }
+
+  private async fetchRates(query: URLSearchParams) {
+    const url = new URL('https://api.frankfurter.dev/v2/rates.csv');
+    url.search = query.toString();
 
     const response = await this.fetcher(url, {
       headers: { accept: 'text/csv' },

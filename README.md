@@ -124,6 +124,17 @@ The launch catalog contains INR, USD, EUR, GBP, AED, CAD, AUD, SGD, JPY, and CHF
 quote has not been published, valuation can use a prior quote up to seven calendar days old.
 Missing or older rates leave the INR total incomplete. The job does not backfill history.
 
+To preview a historical import into the configured API database, pass both dates:
+
+```bash
+pnpm run api:fx:backfill --from 2020-04-01 --to 2026-11-17 --dry-run
+```
+
+The database must already have the API migrations. Both dates are inclusive. Use the last
+completed day in India as the end date, then remove `--dry-run` to save the available rates.
+The importer preserves existing rates and manual overrides, and reports days Frankfurter did
+not return. If it stops, rerun the range to fill remaining gaps without duplicating rows.
+
 Set `FX_AUTO_REFRESH=false` in `apps/api/.env` to disable the job without removing saved rates.
 If several API processes share the database, enable the job on only one of them.
 
