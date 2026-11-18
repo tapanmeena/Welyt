@@ -4,28 +4,20 @@ import type { AppDatabase } from '../../db/client.ts';
 import { accountObservations, accounts } from '../../db/schema.ts';
 import { parseInput } from '../../lib/errors.ts';
 import {
-  FX_RATE_SCALE,
   formatHundredths,
-  formatRateE8,
   indiaFiscalWindow,
   resolveAsOfDate,
 } from '../../lib/financial-values.ts';
 import {
   fxProviderSourceSchema,
   lookupStoredFxRate,
+  valueInrFromStoredFx,
   type StoredFxRateLookup,
 } from '../fx/fx.service.ts';
 import { currentObservationsAsOf } from './accounts.service.ts';
 
 export type AccountValuation = AccountValuationDto;
 export type AccountsValuation = AccountsValuationDto;
-
-function convertToInrPaise(hundredths: bigint, rateE8: number): bigint {
-  const scaled = hundredths * BigInt(rateE8);
-  const magnitude = scaled < 0n ? -scaled : scaled;
-  const rounded = (magnitude + FX_RATE_SCALE / 2n) / FX_RATE_SCALE;
-  return scaled < 0n ? -rounded : rounded;
-}
 
 export class AccountsValuationService {
   private readonly db: AppDatabase;
@@ -103,28 +95,12 @@ export class AccountsValuationService {
             );
             ratesByCurrency.set(account.currencyCode, lookup);
           }
-          if (lookup.status === 'missing') {
-            return { ...account, ...unavailable, snapshot, issue: { reason: 'missing_fx_rate' } };
+          const conversion = valueInrFromStoredFx(paise, lookup);
+          if (conversion.paise === null) {
+            return { ...account, ...unavailable, snapshot, issue: conversion.issue };
           }
-          if (lookup.status === 'stale') {
-            const { rateOn, ageDays } = lookup;
-            return {
-              ...account,
-              ...unavailable,
-              snapshot,
-              issue: { reason: 'stale_fx_rate', rateOn, ageDays },
-            };
-          }
-          const { id, rateOn, rateE8, source, fetchedAt } = lookup.rate;
-          paise = convertToInrPaise(paise, rateE8);
-          fxRate = {
-            id,
-            rateOn,
-            rate: formatRateE8(rateE8),
-            source,
-            fetchedAt,
-            ageDays: lookup.ageDays,
-          };
+          paise = conversion.paise;
+          fxRate = conversion.fxRate;
         }
 
         subtotal += paise;

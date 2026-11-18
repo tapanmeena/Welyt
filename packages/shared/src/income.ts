@@ -4,6 +4,8 @@ import {
   currencyCodeSchema,
   financialDateSchema,
   moneyStringSchema,
+  valuationFxIssueSchema,
+  valuationFxRateSchema,
 } from './accounts.ts';
 
 const receiptAmountSchema = z
@@ -29,6 +31,14 @@ export const incomeListQuerySchema = z.strictObject({
     .default(false),
 });
 
+export const incomeHistoryQuerySchema = z.strictObject({
+  fiscalYear: z
+    .string()
+    .length(4, 'Use the four-digit financial year start')
+    .regex(/^\d{4}$/, 'Use the four-digit financial year start')
+    .optional(),
+});
+
 export const incomeReceiptDtoSchema = z.object({
   id: z.uuid(),
   receivedDate: financialDateSchema,
@@ -45,5 +55,30 @@ export const incomeReceiptDtoSchema = z.object({
   replacesReceiptId: z.uuid().nullable(),
 });
 
+export const incomeReceiptValuationDtoSchema = incomeReceiptDtoSchema.extend({
+  inrAmount: moneyStringSchema.nullable(),
+  fxRate: valuationFxRateSchema.nullable(),
+  issue: valuationFxIssueSchema.nullable(),
+});
+
+const incomeTotalsSchema = z.object({
+  complete: z.boolean(),
+  knownSubtotalInr: moneyStringSchema,
+  totalInr: moneyStringSchema.nullable(),
+});
+
+export const incomeMonthDtoSchema = incomeTotalsSchema.extend({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  receipts: z.array(incomeReceiptValuationDtoSchema),
+});
+
+export const incomeHistoryDtoSchema = incomeTotalsSchema.extend({
+  fiscalYear: z.object({ startsOn: financialDateSchema, endsBefore: financialDateSchema }),
+  reportingCurrencyCode: z.literal('INR'),
+  months: z.array(incomeMonthDtoSchema),
+});
+
 export type IncomeReceiptInput = z.input<typeof incomeReceiptInputSchema>;
 export type IncomeReceiptDto = z.infer<typeof incomeReceiptDtoSchema>;
+export type IncomeReceiptValuationDto = z.infer<typeof incomeReceiptValuationDtoSchema>;
+export type IncomeHistoryDto = z.infer<typeof incomeHistoryDtoSchema>;

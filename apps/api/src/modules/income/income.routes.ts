@@ -1,4 +1,9 @@
-import { AUTH_ERROR_CODES, incomeListQuerySchema, incomeReceiptParamsSchema } from '@welyt/shared';
+import {
+  AUTH_ERROR_CODES,
+  incomeHistoryQuerySchema,
+  incomeListQuerySchema,
+  incomeReceiptParamsSchema,
+} from '@welyt/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppDatabase } from '../../db/client.ts';
 import { AppError, parseInput } from '../../lib/errors.ts';
@@ -26,6 +31,11 @@ export async function registerIncomeRoutes(
   app.get('/income', async (request) => {
     const { includeInactive } = parseInput(incomeListQuerySchema, request.query);
     return income.listReceipts(ownerId(request), includeInactive);
+  });
+
+  app.get('/income/history', async (request) => {
+    const { fiscalYear } = parseInput(incomeHistoryQuerySchema, request.query);
+    return income.getHistory(ownerId(request), fiscalYear);
   });
 
   app.post('/income', async (request, reply) => {

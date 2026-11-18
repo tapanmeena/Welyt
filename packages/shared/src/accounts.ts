@@ -27,6 +27,15 @@ export function indiaBusinessDate(instant: Date): string {
   return `${year.padStart(4, '0')}-${month}-${day}`;
 }
 
+export function indiaFiscalWindow(asOf: string): { startsOn: string; endsBefore: string } {
+  const date = new Date(`${asOf}T00:00:00Z`);
+  const startYear = date.getUTCFullYear() - (date.getUTCMonth() < 3 ? 1 : 0);
+  date.setUTCFullYear(startYear, 3, 1);
+  const startsOn = date.toISOString().replace(/T.*$/, '');
+  date.setUTCFullYear(startYear + 1);
+  return { startsOn, endsBefore: date.toISOString().replace(/T.*$/, '') };
+}
+
 const accountKindSchema = z.enum(ACCOUNT_KINDS);
 export const moneyStringSchema = z.string().regex(/^-?(?:0|[1-9]\d*)\.\d{2}$/);
 const accountMetadataSchema = z.strictObject({
@@ -99,8 +108,7 @@ export const latestBalanceSnapshotResponseSchema = z.object({
   snapshot: balanceSnapshotDtoSchema.nullable(),
 });
 
-const valuationIssueSchema = z.discriminatedUnion('reason', [
-  z.object({ reason: z.literal('missing_snapshot') }),
+export const valuationFxIssueSchema = z.discriminatedUnion('reason', [
   z.object({ reason: z.literal('missing_fx_rate') }),
   z.object({
     reason: z.literal('stale_fx_rate'),
@@ -108,7 +116,11 @@ const valuationIssueSchema = z.discriminatedUnion('reason', [
     ageDays: z.number().int().nonnegative(),
   }),
 ]);
-const valuationFxRateSchema = z.object({
+const valuationIssueSchema = z.discriminatedUnion('reason', [
+  z.object({ reason: z.literal('missing_snapshot') }),
+  ...valuationFxIssueSchema.options,
+]);
+export const valuationFxRateSchema = z.object({
   id: z.string(),
   rateOn: financialDateSchema,
   rate: z.string().regex(/^\d+\.\d{8}$/),
@@ -143,3 +155,5 @@ export type AccountDto = z.infer<typeof accountDtoSchema>;
 export type BalanceSnapshotDto = z.infer<typeof balanceSnapshotDtoSchema>;
 export type AccountValuationDto = z.infer<typeof accountValuationDtoSchema>;
 export type AccountsValuationDto = z.infer<typeof accountsValuationDtoSchema>;
+export type ValuationFxRateDto = z.infer<typeof valuationFxRateSchema>;
+export type ValuationFxIssueDto = z.infer<typeof valuationFxIssueSchema>;

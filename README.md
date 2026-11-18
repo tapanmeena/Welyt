@@ -148,6 +148,13 @@ retain the original balance in history, and archived accounts are read-only.
 The Workspace cash summary values included active accounts in INR. It shows the report date,
 the dates of exchange rates used, and a subtotal when some accounts cannot be valued.
 
+### Track actual income
+
+Open **Income & Plan** from **Workspace** to record or correct receipts and review April-to-March
+history. Receipts stay in their original currency. The report uses the latest stored FX rate
+on or before each receipt date and labels missing or stale rates as incomplete. Recording income
+does not change account balances. If the receipt migration is pending, run `pnpm run api:db:migrate`.
+
 ### Create or refresh a native mobile client
 
 `apps/mobile` does not currently contain generated `android/` or `ios/` directories. Generate them
@@ -209,8 +216,9 @@ required.
 The suite drives the phone and cold-restarts Welyt, so keep the phone unlocked and leave it alone
 while the cases run. It uses a disposable API database, fixed FX fixtures, and separate
 development-only sign-in keys. The regular Welyt session and local API database are not used.
-The cases cover verified sign-in, INR valuation with an FX date, incomplete totals, and correction
-history and session recovery after a restart.
+The cases cover verified sign-in, INR valuation with an FX date, incomplete totals, correction
+history, and session recovery after a restart. They also cover recording and correcting receipts
+and browsing income history without changing cash.
 
 ## App identity and EAS
 

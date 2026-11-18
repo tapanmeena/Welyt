@@ -102,25 +102,30 @@ build, and Drizzle validation passed. The local database was not migrated.
 
 <!-- parallelizable: false -->
 
-- [ ] Default to the current Indian financial year; use April 1 inclusive through the next
+- [x] Default to the current Indian financial year; use April 1 inclusive through the next
   April 1 exclusive, and group history by calendar month. Show original currency and
   amount alongside the INR valuation. A correction that changes the receipt date moves
   the amount to the new month and financial year without counting the original.
-- [ ] Use the [stored FX lookup](../../../apps/api/src/modules/fx/fx.service.ts) as of each
+- [x] Use the [stored FX lookup](../../../apps/api/src/modules/fx/fx.service.ts) as of each
   receipt date, not the current date or the reporting period end. Apply the existing
   precedence rules: latest eligible rate, own manual override on a same-date tie, and at
   most seven calendar days of carry-forward. INR needs no FX lookup. Never fetch rates
   while reading receipts.
-- [ ] Round each converted receipt to INR paise before summing with exact arithmetic, as in
+- [x] Round each converted receipt to INR paise before summing with exact arithmetic, as in
   Accounts valuation. Return the rate date, source, and age when applicable. When any
   required rate is missing or stale, expose the affected receipts and the known INR
   subtotal, not a complete total. Preserve the native receipt even outside FX coverage.
-- [ ] Add a protected Income & Plan screen with receipt entry, correction, and financial-year
+- [x] Add a protected Income & Plan screen with receipt entry, correction, and financial-year
   history. Show gross and TDS as optional details, not as the amount received. Keep Home
   cash and Accounts balances unchanged after recording or correcting income.
-- [ ] Cover year boundaries, owner isolation, exact amounts, duplicate-looking receipts,
+- [x] Cover year boundaries, owner isolation, exact amounts, duplicate-looking receipts,
   correction history, FX completeness, and unchanged snapshots with Fastify integration
   tests. Run workspace type-check and a mobile smoke test using the existing dev client.
+
+Phase 3 added `GET /income/history` and the protected Income & Plan screen. All 49 API
+tests passed, along with type-check, lint, formatting, and the API build. Four Android
+scenarios passed on the attached Pixel, including receipt entry, correction, financial-year
+navigation, and unchanged cash. No new migration was needed.
 
 ## Success criteria
 

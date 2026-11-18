@@ -203,7 +203,7 @@ async function step(t, label, action) {
   return passed;
 }
 
-test('Accounts & Cash on a USB Android device', { timeout: 360_000 }, async (t) => {
+test('Financial modules on a USB Android device', { timeout: 420_000 }, async (t) => {
   const cleanup = [];
   t.after(async () => {
     const errors = [];
@@ -270,21 +270,51 @@ test('Accounts & Cash on a USB Android device', { timeout: 360_000 }, async (t) 
   )
     return;
 
+  if (
+    !(await step(
+      t,
+      'preserves a corrected signed balance and restores the session after a cold launch',
+      async () => {
+        await device.tap('Accounts & Cash', { scroll: true });
+        await device.tap('Dollar travel, USD', { scroll: true });
+        await device.tap(/^Correct balance for /, { scroll: true });
+        await device.tap('Add minus sign', { scroll: true });
+        await device.tap('Save correction', { scroll: true });
+        await device.expect('Superseded', 'USD 2.00', 'USD -2.00');
+        await device.tap('Back to Accounts');
+        await device.tap('Back to Workspace');
+        await device.expect('Known cash subtotal', 'INR -62.50');
+        await device.coldRestart(metro.origin);
+        await device.expectWithin(55_000, fixtureName, 'Known cash subtotal', 'INR -62.50');
+      },
+    ))
+  )
+    return;
+
   await step(
     t,
-    'preserves a corrected signed balance and restores the session after a cold launch',
+    'records and corrects income, browses fiscal history, and leaves cash unchanged',
     async () => {
-      await device.tap('Accounts & Cash', { scroll: true });
-      await device.tap('Dollar travel, USD', { scroll: true });
-      await device.tap(/^Correct balance for /, { scroll: true });
-      await device.tap('Add minus sign', { scroll: true });
+      await device.tap('Income & Plan', { scroll: true });
+      await device.expect('No income receipts in this financial year.');
+      await device.tap('Record income');
+      await device.enter('Income type', 'Freelance');
+      await device.enter('Income source', 'Pixel payer');
+      await device.tap(/^USD($| )/, { scroll: true });
+      await device.enter('Amount received', '2.00');
+      await device.tap('Save receipt', { scroll: true });
+      await device.expect('Receipt recorded.', 'Financial year total', 'INR 162.50');
+      await device.tap('Previous year');
+      await device.expect('No income receipts in this financial year.');
+      await device.tap('Next year');
+      await device.expect('Financial year total', 'INR 162.50');
+      await device.tap('Correct receipt', { scroll: true });
+      await device.tap('Notes (optional)', { scroll: true, editor: true });
+      await device.enter('Notes (optional)', 'Correction fixture');
       await device.tap('Save correction', { scroll: true });
-      await device.expect('Superseded', 'USD 2.00', 'USD -2.00');
-      await device.tap('Back to Accounts');
+      await device.expect('Receipt corrected.', 'Financial year total', 'INR 162.50');
       await device.tap('Back to Workspace');
       await device.expect('Known cash subtotal', 'INR -62.50');
-      await device.coldRestart(metro.origin);
-      await device.expectWithin(55_000, fixtureName, 'Known cash subtotal', 'INR -62.50');
       await device.tap('Sign out', { scroll: true });
       await device.expect('Welcome back');
     },

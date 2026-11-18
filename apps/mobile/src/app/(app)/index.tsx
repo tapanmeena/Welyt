@@ -7,6 +7,7 @@ import {
   KeyRound,
   Landmark,
   LogOut,
+  ReceiptText,
   Scale,
   ShieldAlert,
   Wallet,
@@ -125,11 +126,7 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Accounts & Cash"
                 onPress={() => router.push('/accounts')}
-                style={({ pressed }) => [
-                  styles.settingsRow,
-                  styles.settingsRowLast,
-                  pressed && styles.rowPressed,
-                ]}
+                style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
               >
                 <View style={[styles.tile, styles.tileNavy]}>
                   <Wallet size={18} color={colors.tileNavyFg} strokeWidth={1.7} />
@@ -137,6 +134,27 @@ export default function HomeScreen() {
                 <View style={styles.rowMain}>
                   <Text style={styles.rowTitle}>Accounts & Cash</Text>
                   <Text style={styles.rowSubtitle}>Manage accounts and record dated balances.</Text>
+                </View>
+                <ChevronRight size={16} color={colors.muted} strokeWidth={1.8} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Income & Plan"
+                onPress={() => router.push('/income')}
+                style={({ pressed }) => [
+                  styles.settingsRow,
+                  styles.settingsRowLast,
+                  pressed && styles.rowPressed,
+                ]}
+              >
+                <View style={[styles.tile, styles.tileNavy]}>
+                  <ReceiptText size={18} color={colors.tileNavyFg} strokeWidth={1.7} />
+                </View>
+                <View style={styles.rowMain}>
+                  <Text style={styles.rowTitle}>Income & Plan</Text>
+                  <Text style={styles.rowSubtitle}>
+                    Record income and review financial-year totals.
+                  </Text>
                 </View>
                 <ChevronRight size={16} color={colors.muted} strokeWidth={1.8} />
               </Pressable>

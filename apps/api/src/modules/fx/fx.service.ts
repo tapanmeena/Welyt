@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
+import type { ValuationFxIssueDto, ValuationFxRateDto } from '@welyt/shared';
 import { and, desc, eq, isNull, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppDatabase } from '../../db/client.ts';
 import { currencies, fxRates, type FxRateRecord } from '../../db/schema.ts';
 import { fieldValidationError, parseInput } from '../../lib/errors.ts';
 import {
+  FX_RATE_SCALE,
   assertNotFuture,
   currencyCodeSchema,
   financialDateSchema,
+  formatRateE8,
   indiaBusinessDate,
   parseRateE8,
   resolveAsOfDate,
@@ -157,6 +160,35 @@ export function lookupStoredFxRate(
     return { status: 'stale', rateOn: rate.rateOn, ageDays };
   }
   return { status: ageDays === 0 ? 'same_day' : 'carried_forward', rate, ageDays };
+}
+
+type StoredFxValuation =
+  | { paise: bigint; fxRate: ValuationFxRateDto; issue: null }
+  | { paise: null; fxRate: null; issue: ValuationFxIssueDto };
+
+export function valueInrFromStoredFx(
+  amountHundredths: bigint,
+  lookup: StoredFxRateLookup,
+): StoredFxValuation {
+  if (lookup.status === 'missing') {
+    return { paise: null, fxRate: null, issue: { reason: 'missing_fx_rate' } };
+  }
+  if (lookup.status === 'stale') {
+    return {
+      paise: null,
+      fxRate: null,
+      issue: { reason: 'stale_fx_rate', rateOn: lookup.rateOn, ageDays: lookup.ageDays },
+    };
+  }
+  const { id, rateOn, rateE8, source, fetchedAt } = lookup.rate;
+  const scaled = amountHundredths * BigInt(rateE8);
+  const magnitude = scaled < 0n ? -scaled : scaled;
+  const rounded = (magnitude + FX_RATE_SCALE / 2n) / FX_RATE_SCALE;
+  return {
+    paise: scaled < 0n ? -rounded : rounded,
+    fxRate: { id, rateOn, rate: formatRateE8(rateE8), source, fetchedAt, ageDays: lookup.ageDays },
+    issue: null,
+  };
 }
 
 export class FxService {

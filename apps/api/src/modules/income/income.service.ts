@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { INCOME_ERROR_CODES, incomeReceiptInputSchema, type IncomeReceiptDto } from '@welyt/shared';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import {
+  INCOME_ERROR_CODES,
+  incomeReceiptInputSchema,
+  type IncomeHistoryDto,
+  type IncomeReceiptDto,
+  type IncomeReceiptValuationDto,
+} from '@welyt/shared';
+import { and, desc, eq, gte, isNull, lt } from 'drizzle-orm';
 import type { AppDatabase } from '../../db/client.ts';
 import { currencies, incomeReceipts, type IncomeReceiptRecord } from '../../db/schema.ts';
 import { AppError, fieldValidationError, parseInput } from '../../lib/errors.ts';
@@ -8,8 +14,22 @@ import {
   assertNotFuture,
   formatHundredths,
   indiaBusinessDate,
+  indiaFiscalWindow,
   parseAmountHundredths,
 } from '../../lib/financial-values.ts';
+import { FRANKFURTER_SOURCE } from '../fx/frankfurter.provider.ts';
+import {
+  lookupStoredFxRate,
+  valueInrFromStoredFx,
+  type StoredFxRateLookup,
+} from '../fx/fx.service.ts';
+
+const currentReceipts = and(isNull(incomeReceipts.retiredAt), isNull(incomeReceipts.archivedAt));
+
+function incomeTotals(subtotal: bigint, complete: boolean) {
+  const knownSubtotalInr = formatHundredths(subtotal);
+  return { complete, knownSubtotalInr, totalInr: complete ? knownSubtotalInr : null };
+}
 
 function mapReceipt(row: IncomeReceiptRecord): IncomeReceiptDto {
   return {
@@ -101,17 +121,98 @@ export class IncomeService {
     return this.db
       .select()
       .from(incomeReceipts)
-      .where(
-        and(
-          eq(incomeReceipts.userId, userId),
-          includeInactive
-            ? undefined
-            : and(isNull(incomeReceipts.retiredAt), isNull(incomeReceipts.archivedAt)),
-        ),
-      )
+      .where(and(eq(incomeReceipts.userId, userId), includeInactive ? undefined : currentReceipts))
       .orderBy(desc(incomeReceipts.receivedDate), desc(incomeReceipts.id))
       .all()
       .map(mapReceipt);
+  }
+
+  getHistory(userId: string, yearStart?: string): IncomeHistoryDto {
+    const today = indiaBusinessDate(this.now());
+    const fiscalYear = indiaFiscalWindow(yearStart === undefined ? today : `${yearStart}-04-01`);
+    if (fiscalYear.startsOn > today) {
+      throw fieldValidationError('fiscalYear', 'The financial year has not started in India');
+    }
+
+    return this.db.transaction((tx) => {
+      const rows = tx
+        .select()
+        .from(incomeReceipts)
+        .where(
+          and(
+            eq(incomeReceipts.userId, userId),
+            currentReceipts,
+            gte(incomeReceipts.receivedDate, fiscalYear.startsOn),
+            lt(incomeReceipts.receivedDate, fiscalYear.endsBefore),
+          ),
+        )
+        .orderBy(desc(incomeReceipts.receivedDate), desc(incomeReceipts.id))
+        .all();
+      const rateCache = new Map<string, StoredFxRateLookup>();
+      const months = new Map<
+        string,
+        {
+          receipts: IncomeReceiptValuationDto[];
+          subtotal: bigint;
+          complete: boolean;
+        }
+      >();
+      let subtotal = 0n;
+      let complete = true;
+
+      for (const row of rows) {
+        const month = row.receivedDate.slice(0, 7);
+        let group = months.get(month);
+        if (!group) {
+          group = { receipts: [], subtotal: 0n, complete: true };
+          months.set(month, group);
+        }
+
+        const nativeHundredths = BigInt(row.amountHundredths);
+        let paise: bigint | null = nativeHundredths;
+        let fxRate: IncomeReceiptValuationDto['fxRate'] = null;
+        let issue: IncomeReceiptValuationDto['issue'] = null;
+        if (row.currencyCode !== 'INR') {
+          const rateKey = `${row.currencyCode}:${row.receivedDate}`;
+          let rate = rateCache.get(rateKey);
+          if (!rate) {
+            rate = lookupStoredFxRate(
+              tx,
+              userId,
+              row.currencyCode,
+              row.receivedDate,
+              FRANKFURTER_SOURCE,
+            );
+            rateCache.set(rateKey, rate);
+          }
+          ({ paise, fxRate, issue } = valueInrFromStoredFx(nativeHundredths, rate));
+        }
+        if (paise === null) {
+          group.complete = false;
+          complete = false;
+        } else {
+          group.subtotal += paise;
+          subtotal += paise;
+        }
+        group.receipts.push({
+          ...mapReceipt(row),
+          inrAmount: paise === null ? null : formatHundredths(paise),
+          fxRate,
+          issue,
+        });
+      }
+
+      return {
+        fiscalYear,
+        reportingCurrencyCode: 'INR',
+        ...incomeTotals(subtotal, complete),
+        months: Array.from(months, ([month, group]) => ({
+          month,
+          receipts: group.receipts,
+          ...incomeTotals(group.subtotal, group.complete),
+        })),
+      };
+    });
   }
 
   createReceipt(userId: string, input: unknown): IncomeReceiptDto {

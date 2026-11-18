@@ -1,7 +1,12 @@
 import { BALANCE_INPUT_PATTERN, financialDateSchema, indiaBusinessDate } from '@welyt/shared';
 import { fieldValidationError, parseInput } from './errors.ts';
 
-export { currencyCodeSchema, financialDateSchema, indiaBusinessDate } from '@welyt/shared';
+export {
+  currencyCodeSchema,
+  financialDateSchema,
+  indiaBusinessDate,
+  indiaFiscalWindow,
+} from '@welyt/shared';
 export const FX_RATE_SCALE = 100_000_000n;
 
 export function assertNotFuture(date: string, today: string, field: string): void {
@@ -15,15 +20,6 @@ export function resolveAsOfDate(asOf: string | undefined, now: Date): string {
   const cutoff = asOf === undefined ? today : parseInput(financialDateSchema, asOf);
   assertNotFuture(cutoff, today, 'asOf');
   return cutoff;
-}
-
-export function indiaFiscalWindow(asOf: string): { startsOn: string; endsBefore: string } {
-  const date = new Date(`${asOf}T00:00:00Z`);
-  const startYear = date.getUTCFullYear() - (date.getUTCMonth() < 3 ? 1 : 0);
-  date.setUTCFullYear(startYear, 3, 1);
-  const startsOn = date.toISOString().replace(/T.*$/, '');
-  date.setUTCFullYear(startYear + 1);
-  return { startsOn, endsBefore: date.toISOString().replace(/T.*$/, '') };
 }
 
 const ratePattern = /^(\d{1,8})(?:\.(\d+))?$/;

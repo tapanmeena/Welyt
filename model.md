@@ -13,10 +13,10 @@ The authentication entities below reflect the existing implementation unless mar
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
 and `fx_rates`. The verified-user Accounts API exposes owner-scoped account and snapshot
 operations and INR valuation using stored Frankfurter rates. Mobile Accounts & Cash uses those
-account and snapshot operations, and the Workspace shows the INR cash summary. Standalone
-income receipts have a database table and an API. INR income history, monthly planning, other
-financial modules, and additional user preferences are not implemented. Entity fields below
-describe logical records, not SQL column definitions.
+account and snapshot operations, and the Workspace shows the INR cash summary. Income & Plan
+records standalone receipts and shows INR income history. Monthly forecasting, other financial
+modules, and additional user preferences are not implemented. Entity fields below describe
+logical records, not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
 Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
@@ -251,6 +251,9 @@ All routes require a bearer access token and a verified email address.
 
 - `GET /income` lists the owner's current receipts in descending receipt-date order. Set
   `includeInactive=true` to include archived and superseded versions.
+- `GET /income/history` groups current receipts by calendar month in the current Indian
+  financial year. For example, `fiscalYear=2024` selects April 1, 2024 inclusive through
+  April 1, 2025 exclusive.
 - `POST /income` records an actual receipt. Supply `receivedDate`, `type`, `source`,
   `currencyCode`, and `amount`. `gross`, `tds`, and `notes` are optional.
 - `POST /income/:receiptId/corrections` accepts the full replacement receipt and preserves the
@@ -259,8 +262,17 @@ All routes require a bearer access token and a verified email address.
   request for an already archived version returns the same record.
 
 Requests for another user's receipt return `404`. The amount is the net receipt and must be
-positive. It is never inferred from gross or TDS. These routes do not change account snapshots
-or perform INR conversions.
+positive. It is never inferred from gross or TDS. Receipt writes do not change account
+snapshots.
+
+History values each receipt in INR using the most recent stored rate on or before its received
+date. A user's manual rate wins on a same-date tie, and rates older than seven calendar days
+are not used. Each conversion records which rate was used and is rounded to paise before
+aggregation. A missing or stale rate leaves the original amount visible and makes both the
+month and financial-year totals incomplete. The API returns a known subtotal in that case.
+
+In the mobile app, open **Income & Plan** from **Workspace** to record or correct receipts
+and browse financial years.
 
 ### Proposed planning entities
 
