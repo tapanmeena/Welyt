@@ -1,8 +1,14 @@
 import {
+  apiErrorResponseSchema,
+  authSessionResponseSchema,
+  authTokensSchema,
+  authUserSchema,
+  authVerifyEmailResponseSchema,
   changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
   logoutSchema,
+  messageResponseSchema,
   refreshTokenSchema,
   registerSchema,
   resetPasswordSchema,
@@ -10,6 +16,7 @@ import {
   verifyEmailSchema,
 } from '@welyt/shared';
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import type { ApiEnv } from '../../config/env.ts';
 import type { AppDatabase } from '../../db/client.ts';
 import { zodToValidationError } from '../../lib/errors.ts';
@@ -63,6 +70,31 @@ export async function registerAuthRoutes(
           max: 10,
           timeWindow: '15 minutes',
         },
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Register a new user account',
+          description:
+            'Creates an account, dispatches a 6-digit email verification code (logged to the API console when SMTP is not configured), and returns initial session tokens.',
+          body: {
+            schema: registerSchema,
+            example: {
+              name: 'Aarav Sharma',
+              email: 'aarav@example.com',
+              password: 'Password123',
+              deviceName: 'Browser Dev',
+            },
+          },
+          responses: {
+            201: {
+              schema: authSessionResponseSchema,
+              description: 'Account created with initial session tokens',
+            },
+            409: {
+              schema: apiErrorResponseSchema,
+              description: 'Email address is already registered',
+            },
+          },
+        },
       },
     },
     async (request, reply) => {
@@ -82,6 +114,30 @@ export async function registerAuthRoutes(
         rateLimit: {
           max: 15,
           timeWindow: '15 minutes',
+        },
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Sign in with email and password',
+          description:
+            'Authenticates user credentials and returns a session token pair. Copy `tokens.accessToken` into **Authorize** to test protected endpoints.',
+          body: {
+            schema: loginSchema,
+            example: {
+              email: 'aarav@example.com',
+              password: 'Password123',
+              deviceName: 'Browser Dev',
+            },
+          },
+          responses: {
+            200: {
+              schema: authSessionResponseSchema,
+              description: 'Authenticated session tokens and user profile',
+            },
+            401: {
+              schema: apiErrorResponseSchema,
+              description: 'Invalid email or password',
+            },
+          },
         },
       },
     },
@@ -103,6 +159,28 @@ export async function registerAuthRoutes(
           max: 30,
           timeWindow: '15 minutes',
         },
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Rotate refresh token',
+          description:
+            'Exchanges a valid refresh token for a new access and refresh token pair. Reusing an already rotated refresh token revokes the entire session family.',
+          body: {
+            schema: refreshTokenSchema,
+            example: {
+              refreshToken: 'paste-refresh-token-here',
+            },
+          },
+          responses: {
+            200: {
+              schema: z.object({ tokens: authTokensSchema }),
+              description: 'Rotated token pair',
+            },
+            401: {
+              schema: apiErrorResponseSchema,
+              description: 'Invalid, revoked, or expired refresh token',
+            },
+          },
+        },
       },
     },
     async (request, reply) => {
@@ -115,37 +193,130 @@ export async function registerAuthRoutes(
     },
   );
 
-  app.post('/auth/logout', async (request, reply) => {
-    const input = parseBody(logoutSchema, request.body);
-    const claims = await resolveOptionalAuth(request, db, env);
+  app.post(
+    '/auth/logout',
+    {
+      config: {
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Sign out current session',
+          description:
+            'Revokes the session identified by the bearer token and/or the provided refresh token.',
+          auth: 'optional',
+          body: {
+            schema: logoutSchema,
+            example: {},
+          },
+          responses: {
+            200: {
+              schema: messageResponseSchema,
+              description: 'Session signed out',
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const input = parseBody(logoutSchema, request.body);
+      const claims = await resolveOptionalAuth(request, db, env);
 
-    authService.logout({
-      sessionId: claims?.sessionId,
-      refreshToken: input.refreshToken,
-    });
+      authService.logout({
+        sessionId: claims?.sessionId,
+        refreshToken: input.refreshToken,
+      });
 
-    return reply.status(200).send({ message: 'Signed out' });
-  });
+      return reply.status(200).send({ message: 'Signed out' });
+    },
+  );
 
   app.post(
     '/auth/logout-all',
-    { preHandler: [authGuards.authenticate] },
+    {
+      preHandler: [authGuards.authenticate],
+      config: {
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Sign out from all devices',
+          description: 'Revokes all active sessions belonging to the authenticated user.',
+          auth: 'bearer',
+          responses: {
+            200: {
+              schema: messageResponseSchema,
+              description: 'All active sessions revoked',
+            },
+          },
+        },
+      },
+    },
     async (request, reply) => {
       authService.logoutAll(request.auth!.userId);
       return reply.status(200).send({ message: 'Signed out from all devices' });
     },
   );
 
-  app.get('/auth/me', { preHandler: [authGuards.authenticate] }, async (request, reply) => {
-    const user = authService.getMe(request.auth!.userId);
-    return reply.status(200).send({ user });
-  });
+  app.get(
+    '/auth/me',
+    {
+      preHandler: [authGuards.authenticate],
+      config: {
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Get current user profile',
+          auth: 'bearer',
+          responses: {
+            200: {
+              schema: z.object({ user: authUserSchema }),
+              description: 'Current user profile',
+            },
+            404: {
+              schema: apiErrorResponseSchema,
+              description: 'User not found',
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = authService.getMe(request.auth!.userId);
+      return reply.status(200).send({ user });
+    },
+  );
 
-  app.patch('/auth/me', { preHandler: [authGuards.authenticate] }, async (request, reply) => {
-    const input = parseBody(updateProfileSchema, request.body);
-    const user = authService.updateProfile(request.auth!.userId, input);
-    return reply.status(200).send({ user });
-  });
+  app.patch(
+    '/auth/me',
+    {
+      preHandler: [authGuards.authenticate],
+      config: {
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Update current user profile',
+          auth: 'bearer',
+          body: {
+            schema: updateProfileSchema,
+            example: {
+              name: 'Aarav Sharma',
+              debtMode: 'remaining_emis',
+            },
+          },
+          responses: {
+            200: {
+              schema: z.object({ user: authUserSchema }),
+              description: 'Updated user profile',
+            },
+            404: {
+              schema: apiErrorResponseSchema,
+              description: 'User not found',
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const input = parseBody(updateProfileSchema, request.body);
+      const user = authService.updateProfile(request.auth!.userId, input);
+      return reply.status(200).send({ user });
+    },
+  );
 
   app.post(
     '/auth/verify-email',
@@ -154,6 +325,29 @@ export async function registerAuthRoutes(
         rateLimit: {
           max: 15,
           timeWindow: '15 minutes',
+        },
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Verify email with 6-digit OTP',
+          description:
+            'Verifies the account email using the 6-digit OTP. When called with an active bearer token, `email` can be omitted and a refreshed verified `accessToken` is returned.',
+          auth: 'optional',
+          body: {
+            schema: verifyEmailSchema,
+            example: {
+              code: '123456',
+            },
+          },
+          responses: {
+            200: {
+              schema: authVerifyEmailResponseSchema,
+              description: 'Email verified (includes a fresh accessToken when signed in)',
+            },
+            409: {
+              schema: apiErrorResponseSchema,
+              description: 'Email is already verified',
+            },
+          },
         },
       },
     },
@@ -174,6 +368,21 @@ export async function registerAuthRoutes(
           max: 5,
           timeWindow: '15 minutes',
         },
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Resend email verification OTP',
+          auth: 'bearer',
+          responses: {
+            200: {
+              schema: messageResponseSchema,
+              description: 'Verification OTP sent',
+            },
+            409: {
+              schema: apiErrorResponseSchema,
+              description: 'Email is already verified',
+            },
+          },
+        },
       },
     },
     async (request, reply) => {
@@ -189,6 +398,24 @@ export async function registerAuthRoutes(
         rateLimit: {
           max: 8,
           timeWindow: '15 minutes',
+        },
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Request password reset OTP',
+          description:
+            'Sends a 6-digit password reset code if a matching account exists (logged to the API console when SMTP is not configured).',
+          body: {
+            schema: forgotPasswordSchema,
+            example: {
+              email: 'aarav@example.com',
+            },
+          },
+          responses: {
+            200: {
+              schema: messageResponseSchema,
+              description: 'Password reset instructions dispatched if account exists',
+            },
+          },
         },
       },
     },
@@ -207,6 +434,24 @@ export async function registerAuthRoutes(
           max: 10,
           timeWindow: '15 minutes',
         },
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Reset password with 6-digit OTP',
+          body: {
+            schema: resetPasswordSchema,
+            example: {
+              email: 'aarav@example.com',
+              code: '123456',
+              newPassword: 'NewPassword123',
+            },
+          },
+          responses: {
+            200: {
+              schema: messageResponseSchema,
+              description: 'Password reset and existing sessions revoked',
+            },
+          },
+        },
       },
     },
     async (request, reply) => {
@@ -224,6 +469,25 @@ export async function registerAuthRoutes(
         rateLimit: {
           max: 10,
           timeWindow: '15 minutes',
+        },
+        openapi: {
+          tags: ['Authentication'],
+          summary: 'Change password while signed in',
+          description: 'Updates the password and revokes other active sessions.',
+          auth: 'bearer',
+          body: {
+            schema: changePasswordSchema,
+            example: {
+              currentPassword: 'Password123',
+              newPassword: 'NewPassword123',
+            },
+          },
+          responses: {
+            200: {
+              schema: messageResponseSchema,
+              description: 'Password updated',
+            },
+          },
         },
       },
     },

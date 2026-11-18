@@ -1,0 +1,70 @@
+name: welyt
+
+services:
+  api:
+    image: welyt-api:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: '3000'
+      DATABASE_URL: /data/welyt.db
+      TRUST_PROXY: 172.30.250.3
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env}
+      APP_SCHEME: ${APP_SCHEME:-welyt}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      FX_AUTO_REFRESH: ${FX_AUTO_REFRESH:-true}
+      MAILER_PROVIDER: smtp
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:?Set SMTP_USER in .env}
+      SMTP_PASS: ${SMTP_PASS:?Set SMTP_PASS in .env}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - api-data:/data
+    networks:
+      - backend
+    logging:
+      driver: local
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.11.1
+    command: ['tunnel', '--no-autoupdate', 'run']
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN:?Set CLOUDFLARED_TUNNEL_TOKEN in .env}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      backend:
+        ipv4_address: 172.30.250.3
+    logging:
+      driver: local
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: 172.30.250.0/29
+
+volumes:
+  api-data:

@@ -53,9 +53,10 @@ a new client. Use Expo-compatible dependency selections
   AsyncStorage fallback) and a fetch client with single-flight `401` refresh rotation.
 - `apps/api`: Fastify/TypeScript API (`apps/api/src/app.ts` and `apps/api/src/server.ts`) backed by
   SQLite (`better-sqlite3`) and Drizzle ORM (`apps/api/src/db/schema.ts`, migrations in
-  `apps/api/drizzle/`). Exposes `GET /health` and `/auth/*` routes (`register`, `login`, `refresh`,
-  `logout`, `logout-all`, `me`, `verify-email`, `resend-verification`, `forgot-password`,
-  `reset-password`, `change-password`) plus `app.authGuards` (`authenticate`, `requireVerifiedEmail`).
+  `apps/api/drizzle/`). Exposes `GET /health`, `/auth/*`, `/currencies`, `/accounts/*`, and
+  `/income/*` routes plus `app.authGuards` (`authenticate`, `requireVerifiedEmail`), with
+  interactive OpenAPI 3.0 / Swagger UI documentation at `/docs` in development
+  (`apps/api/src/plugins/openapi.ts`).
 
 Decimal.js, charts, biometric local-auth, document picker, notifications, and financial domain
 models remain installed in `apps/mobile` for upcoming financial modules.

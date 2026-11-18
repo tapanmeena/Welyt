@@ -1,0 +1,192 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { buildApp } from '../app.ts';
+import { loadApiEnv } from '../config/env.ts';
+
+async function buildProxyTestApp(trustProxy = '') {
+  const app = await buildApp({
+    env: loadApiEnv({ NODE_ENV: 'test', TRUST_PROXY: trustProxy }),
+    logger: false,
+  });
+
+  app.get(
+    '/rate-limit-test',
+    { config: { rateLimit: { max: 1, timeWindow: '1 minute' } } },
+    (request) => ({ ip: request.ip }),
+  );
+  return app;
+}
+
+describe('Reverse proxy configuration', () => {
+  it('rate limits real clients separately and ignores spoofed hops before the client', async (t) => {
+    const app = await buildProxyTestApp('172.30.250.3');
+    t.after(() => app.close());
+
+    const first = await app.inject({
+      url: '/rate-limit-test',
+      remoteAddress: '172.30.250.3',
+      headers: { 'x-forwarded-for': '203.0.113.99, 198.51.100.10' },
+    });
+    assert.equal(first.statusCode, 200);
+    assert.deepEqual(first.json(), { ip: '198.51.100.10' });
+
+    const second = await app.inject({
+      url: '/rate-limit-test',
+      remoteAddress: '172.30.250.3',
+      headers: { 'x-forwarded-for': '198.51.100.11' },
+    });
+    assert.equal(second.statusCode, 200);
+    assert.deepEqual(second.json(), { ip: '198.51.100.11' });
+
+    const repeat = await app.inject({
+      url: '/rate-limit-test',
+      remoteAddress: '172.30.250.3',
+      headers: { 'x-forwarded-for': '203.0.113.100, 198.51.100.10' },
+    });
+    assert.equal(repeat.statusCode, 429);
+  });
+
+  it('ignores forwarding headers by default and from peers outside the trusted CIDR', async (t) => {
+    for (const trustProxy of ['', '172.30.249.0/29']) {
+      const app = await buildProxyTestApp(trustProxy);
+      t.after(() => app.close());
+
+      const first = await app.inject({
+        url: '/rate-limit-test',
+        remoteAddress: '172.30.250.4',
+        headers: { 'x-forwarded-for': '198.51.100.10' },
+      });
+      assert.equal(first.statusCode, 200);
+      assert.deepEqual(first.json(), { ip: '172.30.250.4' });
+
+      const second = await app.inject({
+        url: '/rate-limit-test',
+        remoteAddress: '172.30.250.4',
+        headers: { 'x-forwarded-for': '198.51.100.11' },
+      });
+      assert.equal(second.statusCode, 429);
+    }
+  });
+
+  it('rejects invalid addresses and blanket boolean proxy settings', () => {
+    for (const trustProxy of ['true', '*', '172.30.250.3,invalid', '172.30.250.0/99']) {
+      assert.throws(() => loadApiEnv({ TRUST_PROXY: trustProxy }), /TRUST_PROXY/);
+    }
+  });
+});
+
+describe('Interactive OpenAPI / Swagger UI documentation', () => {
+  it('enables docs by default only in development unless overridden by API_DOCS_ENABLED', () => {
+    assert.equal(loadApiEnv({ NODE_ENV: 'development' }).apiDocsEnabled, true);
+    assert.equal(
+      loadApiEnv({ NODE_ENV: 'development', API_DOCS_ENABLED: 'false' }).apiDocsEnabled,
+      false,
+    );
+    assert.equal(loadApiEnv({ NODE_ENV: 'test' }).apiDocsEnabled, false);
+    assert.equal(
+      loadApiEnv({
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: 'production-secret-at-least-thirty-two-chars',
+      }).apiDocsEnabled,
+      false,
+    );
+    assert.equal(
+      loadApiEnv({
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: 'production-secret-at-least-thirty-two-chars',
+        API_DOCS_ENABLED: 'true',
+      }).apiDocsEnabled,
+      true,
+    );
+  });
+
+  it('does not expose /docs or /docs/json when disabled', async (t) => {
+    const app = await buildApp({
+      env: loadApiEnv({ NODE_ENV: 'test' }),
+      logger: false,
+      enableRateLimit: false,
+    });
+    t.after(() => app.close());
+
+    const uiResponse = await app.inject({ url: '/docs' });
+    assert.equal(uiResponse.statusCode, 404);
+
+    const specResponse = await app.inject({ url: '/docs/json' });
+    assert.equal(specResponse.statusCode, 404);
+  });
+
+  it('serves Swagger UI and a complete OpenAPI 3.0 spec covering all API routes', async (t) => {
+    const app = await buildApp({
+      env: loadApiEnv({ NODE_ENV: 'test', API_DOCS_ENABLED: 'true' }),
+      logger: false,
+      enableRateLimit: false,
+    });
+    t.after(() => app.close());
+
+    const uiResponse = await app.inject({ url: '/docs' });
+    assert.equal(uiResponse.statusCode, 200);
+    assert.match(uiResponse.headers['content-type'] ?? '', /text\/html/);
+    assert.match(uiResponse.body, /swagger-ui/i);
+
+    const specResponse = await app.inject({ url: '/docs/json' });
+    assert.equal(specResponse.statusCode, 200);
+    const spec = specResponse.json<{
+      openapi: string;
+      components?: { securitySchemes?: Record<string, { type: string; scheme: string }> };
+      paths: Record<string, Record<string, Record<string, unknown>>>;
+    }>();
+
+    assert.equal(spec.openapi, '3.0.3');
+    assert.deepEqual(spec.components?.securitySchemes?.bearerAuth?.type, 'http');
+    assert.deepEqual(spec.components?.securitySchemes?.bearerAuth?.scheme, 'bearer');
+
+    const expectedOperations: Array<[string, string]> = [
+      ['get', '/health'],
+      ['post', '/auth/register'],
+      ['post', '/auth/login'],
+      ['post', '/auth/refresh'],
+      ['post', '/auth/logout'],
+      ['post', '/auth/logout-all'],
+      ['get', '/auth/me'],
+      ['patch', '/auth/me'],
+      ['post', '/auth/verify-email'],
+      ['post', '/auth/resend-verification'],
+      ['post', '/auth/forgot-password'],
+      ['post', '/auth/reset-password'],
+      ['post', '/auth/change-password'],
+      ['get', '/currencies'],
+      ['get', '/accounts'],
+      ['post', '/accounts'],
+      ['get', '/accounts/valuation'],
+      ['patch', '/accounts/{accountId}'],
+      ['post', '/accounts/{accountId}/archive'],
+      ['get', '/accounts/{accountId}/snapshots'],
+      ['get', '/accounts/{accountId}/snapshots/latest'],
+      ['post', '/accounts/{accountId}/snapshots'],
+      ['post', '/accounts/{accountId}/snapshots/{snapshotId}/corrections'],
+      ['get', '/income'],
+      ['get', '/income/history'],
+      ['post', '/income'],
+      ['post', '/income/{receiptId}/corrections'],
+      ['post', '/income/{receiptId}/archive'],
+      ['get', '/income/plans/{month}'],
+      ['put', '/income/plans/{month}'],
+      ['get', '/income/plan-rules/auto-copy'],
+      ['put', '/income/plan-rules/auto-copy'],
+    ];
+
+    for (const [method, path] of expectedOperations) {
+      const operation = spec.paths[path]?.[method];
+      assert.ok(operation, `Expected ${method.toUpperCase()} ${path} in OpenAPI spec`);
+      assert.ok(operation.summary, `Expected summary on ${method.toUpperCase()} ${path}`);
+      assert.ok(
+        Array.isArray(operation.tags) && operation.tags.length > 0,
+        `Expected tags on ${method.toUpperCase()} ${path}`,
+      );
+    }
+
+    assert.deepEqual(spec.paths['/auth/verify-email']?.post?.security, [{}, { bearerAuth: [] }]);
+    assert.deepEqual(spec.paths['/accounts']?.post?.security, [{ bearerAuth: [] }]);
+    assert.equal(spec.paths['/accounts/{accountId}/archive']?.post?.requestBody, undefined);
+  });
+});

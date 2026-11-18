@@ -12,8 +12,8 @@ authentication (registration, sign-in, rotating refresh tokens with reuse revoca
 verification, forgot/reset password, password updates, and profile preferences). `apps/mobile`
 wires Expo Router protected route groups, SecureStore session persistence, single-flight token
 refresh, React Query, Zustand, and React Hook Form auth screens. Verified users can also manage
-accounts and balance snapshots in Accounts & Cash. Other financial screens and deployment
-configuration are not implemented yet.
+accounts and balance snapshots in Accounts & Cash. Other financial screens are not implemented yet.
+Docker Compose can run the API with persistent SQLite storage and a Cloudflare Tunnel.
 
 ## Project layout
 
@@ -35,6 +35,7 @@ configuration are not implemented yet.
 │   │   │   ├── plugins/        # Bearer JWT and verified-email route guards
 │   │   │   ├── app.ts          # Fastify app builder, plugins, and routes
 │   │   │   └── server.ts       # HTTP server entry point
+│   │   ├── Dockerfile          # Multi-stage production API image
 │   │   ├── .env.example        # API environment template
 │   │   ├── drizzle.config.ts   # Drizzle Kit configuration
 │   │   ├── eslint.config.js    # API ESLint flat config
@@ -58,6 +59,9 @@ configuration are not implemented yet.
 │       ├── eslint.config.js    # Expo flat config and Prettier compatibility
 │       ├── package.json        # Mobile dependencies and scripts
 │       └── tsconfig.json       # Mobile TypeScript config
+├── .dockerignore               # Allowlisted backend-only Docker build context
+├── .env.example                # Production Docker Compose environment template
+├── compose.yaml                # API, cloudflared, and persistent SQLite volume
 ├── model.md                    # Financial and authentication data-model notes
 ├── package.json                # Workspace root scripts
 ├── pnpm-lock.yaml              # Single workspace lockfile
@@ -118,6 +122,181 @@ links are logged to the API console.
 
 For development email deep links, set `APP_SCHEME=welyt-dev` in `apps/api/.env`, as shown in the
 environment template. Use `welyt-preview` for a preview API and `welyt` for production.
+
+In `development` mode (`API_DOCS_ENABLED=true` by default), the server exposes interactive Swagger
+UI documentation at `http://localhost:3000/docs` and the raw OpenAPI 3.0 specification at
+`http://localhost:3000/docs/json`. Sign in through `POST /auth/login` or `POST /auth/register`,
+paste `tokens.accessToken` into **Authorize**, and execute requests directly from your browser.
+Interactive docs are disabled by default outside `development` unless `API_DOCS_ENABLED=true` is
+set explicitly.
+
+### Run the API on a Raspberry Pi with Docker
+
+Use a 64-bit Raspberry Pi OS or Ubuntu installation with
+[Docker Engine and the Compose plugin](https://docs.docker.com/engine/install/debian/).
+Enable Docker at boot. Run the following commands from the repository root.
+
+The [API Dockerfile](./apps/api/Dockerfile) builds on Node.js 24 Debian slim and installs native
+SQLite dependencies for the target architecture. The final image runs compiled JavaScript as
+the non-root `node` user, with production dependencies, shared contracts, and migrations.
+You do not need Node.js or pnpm installed on the host.
+
+The [Compose stack](./compose.yaml) runs one API and one cloudflared container, with no published
+host ports. Only `/data` and temporary storage are writable in the API container.
+The [Docker build allowlist](./.dockerignore) excludes mobile code, `local/`, environment files,
+databases, and host dependencies.
+
+#### Configure the deployment and tunnel
+
+```bash
+cp .env.example .env
+chmod 600 .env
+openssl rand -hex 32
+```
+
+Edit the root `.env`, not `apps/api/.env`, and set:
+
+- `JWT_ACCESS_SECRET` to the generated value; preserve it across upgrades
+- `SMTP_USER` and `SMTP_PASS` to working SMTP credentials
+- `CLOUDFLARED_TUNNEL_TOKEN` to a remotely managed tunnel's token
+- `APP_SCHEME` to `welyt`, `welyt-preview`, or `welyt-dev`, matching the installed app
+
+Gmail defaults to port 465 and requires a Google App Password. Other SMTP providers can override
+`SMTP_HOST`, `SMTP_PORT`, and `SMTP_FROM`. Missing credentials stop deployment instead of falling
+back to console delivery. Leave `CORS_ORIGINS` empty for native-only use; for web, list exact
+frontend origins separated by commas. Single-quote environment values containing `$`.
+
+Create a tunnel in the
+[Cloudflare dashboard](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/).
+For its published application route, use a hostname such as `welyt-api.example.com` and the
+HTTP service URL `http://api:3000`. Do not use `localhost`, which would address the cloudflared
+container itself. The API listens on `0.0.0.0` inside its container; neither service needs router
+port-forwarding or an additional reverse proxy.
+
+> [!IMPORTANT]
+> Keep `.env`, database backups, and tunnel credentials private. They are not image contents.
+> Leave Cloudflare caching disabled for authenticated responses. An interactive Cloudflare Access
+> login also requires explicit mobile-client integration; the API already uses bearer authentication.
+
+Compose reserves `172.30.250.3` for cloudflared on `172.30.250.0/29`. The API trusts forwarding
+headers only from that address, preserving per-client rate limits without trusting arbitrary
+forwarded IPs. If this subnet overlaps another network, change the subnet, cloudflared's
+`ipv4_address`, and the API's `TRUST_PROXY` together. Outside Compose, `TRUST_PROXY` defaults to
+disabled and accepts only comma-separated IP addresses or CIDRs.
+
+#### Build, start, and verify
+
+```bash
+docker compose config --quiet
+docker compose build --pull api
+docker compose up -d --wait
+docker compose ps
+docker compose logs --tail=100 api cloudflared
+curl --fail https://welyt-api.example.com/health
+```
+
+Replace the example hostname with your own. The health endpoint should return `{"status":"ok"}`.
+The tunnel starts after the API passes its container health check. Docker restarts either
+container after a crash or host reboot. Keep one API instance because it owns SQLite and
+scheduled jobs. Health checks report failures but do not themselves restart an unhealthy process.
+
+Building on a 64-bit Pi selects Linux ARM64 automatically. To build for the Pi on another host,
+use `docker buildx build --platform linux/arm64 --load -f apps/api/Dockerfile -t welyt-api:local .`
+and transfer/load that image on the Pi before running Compose. Never copy host `node_modules`.
+
+Set `EXPO_PUBLIC_API_URL=https://welyt-api.example.com` in the matching mobile/EAS environment,
+then publish a compatible JavaScript update or build. No native rebuild is required solely for
+the API URL change.
+
+#### Publish images on GitHub and deploy with Portainer
+
+The [Publish API image workflow](./.github/workflows/api-image.yml) builds on a native GitHub-hosted
+ARM64 runner and publishes to GitHub Container Registry (GHCR). It runs for backend-related
+pushes to the repository's default branch, or manually from **Actions > Publish API image >
+Run workflow** with that branch selected. It does not publish feature branches.
+
+Connect this checkout to a GitHub repository, then commit and push the workflow and Docker build
+inputs to its default branch. The workflow derives its image name from the repository, so no
+GitHub username or repository name needs to be hardcoded:
+
+```text
+ghcr.io/owner/repository-api:latest
+ghcr.io/owner/repository-api:sha-FULL_COMMIT_SHA
+```
+
+For example, `owner/Welyt` publishes `ghcr.io/owner/welyt-api`. Image names are lowercased
+automatically. The workflow uses the built-in `GITHUB_TOKEN` with package-write permission;
+no publishing PAT or application credentials are needed in GitHub Actions. Keep JWT, SMTP,
+and tunnel credentials on the Pi or in Portainer, not in the repository or image.
+
+New GHCR packages default to private. Keep that visibility unless you intend to distribute the
+image publicly. For a private package, add a `ghcr.io` registry in Portainer using your GitHub
+username and a personal access token (classic) with `read:packages` and access to the package.
+Authorize that token for SSO if your organization requires it. Public images can be pulled
+without authentication. See [GHCR authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+
+In Portainer, select the Pi's Docker Standalone environment and create or update the `welyt`
+stack from [compose.yaml](./compose.yaml). Remove the API's `build:` block, replace its image
+with your published image, and set:
+
+```yaml
+image: ghcr.io/owner/repository-api:latest
+pull_policy: always
+```
+
+Replace `owner/repository` with the lowercase GitHub repository path. Remove any previous
+`pull_policy: never` setting. Keep the environment variables, `api-data` volume, network,
+and cloudflared service unchanged, and select your GHCR registry for the stack when using a
+private image. Set the required environment variables in Portainer before deploying.
+The Pi only pulls and runs the image; no source checkout, image archive transfer, Node.js, or
+pnpm installation is needed there.
+
+After another image is published, use Portainer's update/redeploy action with image re-pulling
+enabled. Publishing an image does not automatically restart the Pi's containers.
+Use a `sha-...` tag or image digest when you want to pin a specific version, and back up SQLite
+before upgrading. Preserve the existing stack name and data volume.
+
+GHCR container image storage and bandwidth are
+[currently free, including private images](https://docs.github.com/en/billing/concepts/product-billing/github-packages).
+[Standard public-repository Actions runners are free](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
+private-repository builds use the owner's included compute allowance and can incur charges
+after it is exhausted. Check the owning account's usage and paid-usage controls before enabling
+automatic builds if you need a strict zero-cost limit. The workflow limits builds to backend
+inputs, reuses one ARM64 build-cache scope, cancels superseded builds, and disables build-record
+artifact uploads.
+
+#### Preserve data and apply upgrades
+
+SQLite lives at `/data/welyt.db` in the named `api-data` volume. Container replacement and
+`docker compose down` preserve it. Migrations run automatically when the API starts.
+Stopping a container sends `SIGTERM`; the API closes its server, jobs, and database before exiting.
+
+Create a consistent SQLite backup while the API is running, then copy it off the Pi:
+
+```bash
+docker compose exec -T api node --input-type=module -e 'import Database from "better-sqlite3"; const db = new Database(process.env.DATABASE_URL); await db.backup("/data/welyt-backup.db"); db.close();'
+docker compose cp api:/data/welyt-backup.db ./welyt-backup.db
+docker compose exec -T api rm /data/welyt-backup.db
+```
+
+Store backups encrypted outside the Pi and test restoring them. Do not copy only a live `.db`
+file: the database uses WAL and may have uncheckpointed changes.
+
+Back up before deploying a new revision, then rebuild and recreate the containers:
+
+```bash
+docker compose build --pull api
+docker compose pull cloudflared
+docker compose up -d --wait
+```
+
+The cloudflared image is version-pinned in Compose; update that tag deliberately. Database
+migrations can make an older application image incompatible, so retain a matching backup
+before rolling back.
+
+> [!WARNING]
+> Do not run `docker compose down -v`: it deletes the database volume.
+> Keep the same Compose project name when upgrading so the existing volume is reused.
 
 ### Daily exchange rates
 
@@ -228,7 +407,7 @@ Run workspace commands from the repository root:
 | Export Android and iOS JS bundles             | `pnpm run mobile:export:check`                         |
 | Create Android production AAB                 | `pnpm run mobile:build:android:production`             |
 | Create Android preview APK                    | `pnpm run mobile:build:android:preview`                |
-| Publish Expo updates (specify channel/env)     | `pnpm run mobile:update`                               |
+| Publish Expo updates (specify channel/env)    | `pnpm run mobile:update`                               |
 | Generate native projects                      | `pnpm run mobile:prebuild`                             |
 | Build and run locally on Android / iOS        | `pnpm run mobile:android` / `pnpm run mobile:ios`      |
 
@@ -273,9 +452,9 @@ another app.
 
 | Variant       | Display name    | Android package and iOS bundle ID | URI scheme      |
 | ------------- | --------------- | --------------------------------- | --------------- |
-| `development` | `Welyt Dev`     | `com.tapanmeena.welyt.dev`         | `welyt-dev`     |
-| `preview`     | `Welyt Preview` | `com.tapanmeena.welyt.preview`     | `welyt-preview` |
-| `production`  | `Welyt`         | `com.tapanmeena.welyt`             | `welyt`         |
+| `development` | `Welyt Dev`     | `com.tapanmeena.welyt.dev`        | `welyt-dev`     |
+| `preview`     | `Welyt Preview` | `com.tapanmeena.welyt.preview`    | `welyt-preview` |
+| `production`  | `Welyt`         | `com.tapanmeena.welyt`            | `welyt`         |
 
 These variants can coexist on one device. The iOS simulator profile inherits the development
 identity. Only development registers Expo's generated development-client scheme, so Metro links

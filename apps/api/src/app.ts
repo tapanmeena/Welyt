@@ -18,6 +18,7 @@ import { FxService } from './modules/fx/fx.service.ts';
 import { registerIncomeRoutes } from './modules/income/income.routes.ts';
 import { MonthlyPlanService } from './modules/income/monthly-plan.service.ts';
 import { createAuthGuards } from './plugins/auth-guard.ts';
+import { registerOpenApiDocs } from './plugins/openapi.ts';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -31,6 +32,7 @@ export interface BuildAppOptions extends FastifyServerOptions {
   database?: DatabaseConnection;
   mailer?: Mailer;
   enableRateLimit?: boolean;
+  enableDocs?: boolean;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -39,11 +41,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     database: providedDatabase,
     mailer: providedMailer,
     enableRateLimit = true,
+    enableDocs,
     ...fastifyOptions
   } = options;
 
   const env = providedEnv ?? loadApiEnv();
-  const app = Fastify(fastifyOptions);
+  const docsEnabled = enableDocs ?? env.apiDocsEnabled;
+  const app = Fastify({ trustProxy: env.trustProxy, ...fastifyOptions });
 
   if (env.usingFallbackDevSecret && env.nodeEnv !== 'test') {
     app.log.warn(
@@ -210,9 +214,31 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     });
   });
 
-  app.get('/health', async () => {
-    return { status: 'ok' };
-  });
+  if (docsEnabled) {
+    await registerOpenApiDocs(app);
+  }
+
+  app.get(
+    '/health',
+    {
+      config: {
+        openapi: {
+          tags: ['System'],
+          summary: 'Health check',
+          description: 'Verifies that the API process is running and responsive.',
+          responses: {
+            200: {
+              schema: z.object({ status: z.literal('ok') }),
+              description: 'API server is healthy',
+            },
+          },
+        },
+      },
+    },
+    async () => {
+      return { status: 'ok' };
+    },
+  );
 
   await registerAuthRoutes(app, {
     authService,

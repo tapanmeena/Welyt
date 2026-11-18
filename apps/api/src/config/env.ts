@@ -6,6 +6,12 @@ const rawEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().trim().min(1).default('0.0.0.0'),
   PORT: z.coerce.number().int().positive().default(3000),
+  TRUST_PROXY: z
+    .string()
+    .trim()
+    .default('')
+    .transform((value) => (value === '' ? [] : value.split(',').map((entry) => entry.trim())))
+    .pipe(z.array(z.union([z.ipv4(), z.ipv6(), z.cidrv4(), z.cidrv6()]))),
   DATABASE_URL: z.string().trim().min(1).default('./data/welyt.db'),
   JWT_ACCESS_SECRET: z.string().optional(),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
@@ -16,6 +22,7 @@ const rawEnvSchema = z.object({
   APP_SCHEME: z.string().trim().min(1).default('welyt'),
   CORS_ORIGINS: z.string().trim().default('*'),
   FX_AUTO_REFRESH: z.enum(['true', 'false']).default('true'),
+  API_DOCS_ENABLED: z.enum(['true', 'false']).optional(),
   MAILER_PROVIDER: z.enum(['auto', 'smtp', 'console']).default('auto'),
   SMTP_HOST: z.string().trim().min(1).default('smtp.gmail.com'),
   SMTP_PORT: z.coerce.number().int().positive().default(465),
@@ -38,6 +45,7 @@ export interface ApiEnv {
   nodeEnv: 'development' | 'test' | 'production';
   host: string;
   port: number;
+  trustProxy: string[] | false;
   databaseUrl: string;
   jwtAccessSecret: string;
   usingFallbackDevSecret: boolean;
@@ -49,6 +57,7 @@ export interface ApiEnv {
   appScheme: string;
   corsOrigins: string[] | true;
   fxAutoRefresh: boolean;
+  apiDocsEnabled: boolean;
   mailerProvider: 'smtp' | 'console';
   smtp: SmtpConfig | null;
 }
@@ -120,6 +129,7 @@ export function loadApiEnv(raw: NodeJS.ProcessEnv = process.env): ApiEnv {
     nodeEnv: parsed.NODE_ENV,
     host: parsed.HOST,
     port: parsed.PORT,
+    trustProxy: parsed.TRUST_PROXY.length > 0 ? parsed.TRUST_PROXY : false,
     databaseUrl: parsed.DATABASE_URL,
     jwtAccessSecret,
     usingFallbackDevSecret,
@@ -131,6 +141,10 @@ export function loadApiEnv(raw: NodeJS.ProcessEnv = process.env): ApiEnv {
     appScheme: parsed.APP_SCHEME,
     corsOrigins,
     fxAutoRefresh: parsed.FX_AUTO_REFRESH === 'true',
+    apiDocsEnabled:
+      parsed.API_DOCS_ENABLED !== undefined
+        ? parsed.API_DOCS_ENABLED === 'true'
+        : parsed.NODE_ENV === 'development',
     mailerProvider,
     smtp,
   };
