@@ -12,9 +12,9 @@ A universal accounting ledger is not required.
 The authentication entities below reflect the existing implementation unless marked proposed.
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
 and `fx_rates`. Only INR is seeded. The backend supports owner-scoped account and snapshot
-operations but does not expose financial API routes yet. Live FX ingestion, other financial
-entities, and additional user preferences are not implemented. Entity fields below describe
-logical records, not SQL column definitions.
+operations and fixture-tested daily FX ingestion and lookup. No live FX provider, scheduler,
+or financial API routes are wired. Other financial entities and additional user preferences
+are not implemented. Entity fields below describe logical records, not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
 Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
@@ -145,8 +145,9 @@ provider history. `AppliedFx` is an immutable snapshot referenced by financial s
 Rates must be positive; define direction consistently as target units per source unit.
 V1 uses daily foreign-to-INR rates for reporting and does not create `AppliedFx` settlements.
 Features that require market data use external price and FX feeds plus manual overrides.
-Provider selection, override precedence, triangulation, historical coverage, and staleness
-thresholds remain open.
+V1 lookup selects the latest rate on or before the reporting date, with the user's override
+winning on the same date. The backend uses a seven-day carry-forward window pending live
+release confirmation. Provider selection, triangulation, and historical coverage remain open.
 
 ## Accounts & Cash
 

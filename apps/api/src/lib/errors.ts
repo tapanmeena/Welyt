@@ -34,6 +34,14 @@ export function fieldValidationError(field: string, message: string): AppError {
   return new AppError(400, AUTH_ERROR_CODES.VALIDATION_ERROR, message, { [field]: [message] });
 }
 
+export function parseInput<T>(schema: z.ZodType<T>, input: unknown): T {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) {
+    throw zodToValidationError(parsed.error);
+  }
+  return parsed.data;
+}
+
 export function zodToValidationError(zodError: z.ZodError): AppError {
   const fieldErrors: Record<string, string[]> = {};
 

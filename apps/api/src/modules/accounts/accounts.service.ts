@@ -10,8 +10,10 @@ import {
   type AccountObservationRecord,
   type AccountRecord,
 } from '../../db/schema.ts';
-import { fieldValidationError, zodToValidationError } from '../../lib/errors.ts';
+import { fieldValidationError, parseInput } from '../../lib/errors.ts';
 import {
+  assertNotFuture,
+  currencyCodeSchema,
   financialDateSchema,
   formatHundredths,
   indiaBusinessDate,
@@ -26,10 +28,7 @@ const accountMetadataSchema = z.strictObject({
   notes: z.string().nullable().optional(),
 });
 const createAccountSchema = accountMetadataSchema.extend({
-  currencyCode: z
-    .string()
-    .regex(/^[A-Z]{3}$/, 'Use a three-letter currency code')
-    .default('INR'),
+  currencyCode: currencyCodeSchema.default('INR'),
 });
 const updateAccountSchema = accountMetadataSchema
   .partial()
@@ -70,14 +69,6 @@ export class AccountsError extends Error {
 
 type AccountsDb = Pick<AppDatabase, 'select' | 'update'>;
 
-function parseInput<T>(schema: z.ZodType<T>, input: unknown): T {
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) {
-    throw zodToValidationError(parsed.error);
-  }
-  return parsed.data;
-}
-
 function ownedAccount(userId: string, accountId: string) {
   return and(eq(accounts.userId, userId), eq(accounts.id, accountId));
 }
@@ -106,12 +97,6 @@ function currencyMinorUnits(db: AccountsDb, currencyCode: string): number {
     throw fieldValidationError('currencyCode', 'Unsupported account currency');
   }
   return currency.minorUnits;
-}
-
-function assertNotFuture(date: string, today: string, field: string): void {
-  if (date > today) {
-    throw fieldValidationError(field, 'Date cannot be in the future in India');
-  }
 }
 
 function mapObservation(row: AccountObservationRecord, currencyCode: string): BalanceObservation {
