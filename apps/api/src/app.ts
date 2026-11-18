@@ -17,6 +17,7 @@ import { startDailyFxRefresh } from './modules/fx/fx.job.ts';
 import { FxService } from './modules/fx/fx.service.ts';
 import { registerIncomeRoutes } from './modules/income/income.routes.ts';
 import { MonthlyPlanService } from './modules/income/monthly-plan.service.ts';
+import { registerSystemRoutes } from './modules/system/system.routes.ts';
 import { createAuthGuards } from './plugins/auth-guard.ts';
 import { registerOpenApiDocs } from './plugins/openapi.ts';
 
@@ -218,27 +219,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await registerOpenApiDocs(app);
   }
 
-  app.get(
-    '/health',
-    {
-      config: {
-        openapi: {
-          tags: ['System'],
-          summary: 'Health check',
-          description: 'Verifies that the API process is running and responsive.',
-          responses: {
-            200: {
-              schema: z.object({ status: z.literal('ok') }),
-              description: 'API server is healthy',
-            },
-          },
-        },
-      },
-    },
-    async () => {
-      return { status: 'ok' };
-    },
-  );
+  await app.register(registerSystemRoutes, { docsEnabled });
 
   await registerAuthRoutes(app, {
     authService,

@@ -3,6 +3,75 @@ import { describe, it } from 'node:test';
 import { buildApp } from '../app.ts';
 import { loadApiEnv } from '../config/env.ts';
 
+describe('Public system pages', () => {
+  const env = loadApiEnv({ NODE_ENV: 'test' });
+  const browserAccept = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+
+  it('serves a landing page with links to status and, when enabled, API docs', async (t) => {
+    for (const enableDocs of [false, true]) {
+      const app = await buildApp({ env, enableDocs, logger: false });
+      t.after(() => app.close());
+
+      const response = await app.inject({ url: '/' });
+
+      assert.equal(response.statusCode, 200);
+      assert.match(response.headers['content-type'] ?? '', /^text\/html/);
+      assert.match(response.body, /<title>Welyt \| Your money, in focus<\/title>/);
+      assert.match(response.body, /href="\/health"/);
+      assert.equal(response.body.includes('href="/docs"'), enableDocs);
+    }
+  });
+
+  it('shows a fresh Service Pulse for browser requests without overclaiming health', async (t) => {
+    const app = await buildApp({ env, logger: false });
+    t.after(() => app.close());
+
+    const started = Date.now();
+    const response = await app.inject({
+      url: '/health',
+      headers: { accept: browserAccept, origin: 'https://welyt.example' },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.match(response.headers['content-type'] ?? '', /^text\/html/);
+    assert.equal(response.headers['cache-control'], 'no-store');
+    const vary = String(response.headers.vary).toLowerCase().split(/,\s*/);
+    assert.ok(vary.includes('accept'));
+    assert.ok(vary.includes('origin'));
+    assert.match(response.body, /<title>Welyt \| Service Pulse<\/title>/);
+    assert.match(response.body, /HTTP liveness only/);
+    assert.match(response.body, /href="\/health\?format=json"/);
+
+    const timestamp = Date.parse(response.body.match(/<time datetime="([^"]+)"/)?.[1] ?? '');
+    assert.ok(timestamp >= started && timestamp <= Date.now(), 'Expected a fresh check time');
+  });
+
+  it('preserves the health JSON for probes and allows browsers to request it', async (t) => {
+    const app = await buildApp({ env, logger: false });
+    t.after(() => app.close());
+
+    for (const accept of [
+      undefined,
+      '*/*',
+      'application/json',
+      'text/html;q=0.2, application/json',
+      'text/html;q=0, */*;q=1',
+    ]) {
+      const response = await app.inject({ url: '/health', headers: accept ? { accept } : {} });
+      assert.equal(response.statusCode, 200);
+      assert.match(response.headers['content-type'] ?? '', /^application\/json/);
+      assert.deepEqual(response.json(), { status: 'ok' });
+    }
+
+    const response = await app.inject({
+      url: '/health?format=json',
+      headers: { accept: browserAccept },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), { status: 'ok' });
+  });
+});
+
 async function buildProxyTestApp(trustProxy = '') {
   const app = await buildApp({
     env: loadApiEnv({ NODE_ENV: 'test', TRUST_PROXY: trustProxy }),

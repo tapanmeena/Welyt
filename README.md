@@ -123,6 +123,13 @@ links are logged to the API console.
 For development email deep links, set `APP_SCHEME=welyt-dev` in `apps/api/.env`, as shown in the
 environment template. Use `welyt-preview` for a preview API and `welyt` for production.
 
+Open the [Welyt landing page](http://localhost:3000/) in a browser and follow **Service status** to
+[Service Pulse](http://localhost:3000/health). This check confirms that the API answers HTTP
+requests; it does not check the database or other services. Monitoring clients still get
+`{"status":"ok"}` from `GET /health` without an `Accept` header or with `Accept: application/json`.
+Use [`/health?format=json`](http://localhost:3000/health?format=json) to view that response in a
+browser.
+
 In `development` mode (`API_DOCS_ENABLED=true` by default), the server exposes interactive Swagger
 UI documentation at `http://localhost:3000/docs` and the raw OpenAPI 3.0 specification at
 `http://localhost:3000/docs/json`. Sign in through `POST /auth/login` or `POST /auth/register`,
