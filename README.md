@@ -13,7 +13,7 @@ verification, forgot/reset password, password updates, and profile preferences).
 wires Expo Router protected route groups, SecureStore session persistence, single-flight token
 refresh, React Query, Zustand, and React Hook Form auth screens. Verified users can also manage
 accounts and balance snapshots in Accounts & Cash. Other financial screens are not implemented yet.
-Docker Compose can run the API with persistent SQLite storage and a Cloudflare Tunnel.
+Docker Compose runs the API with persistent SQLite storage behind an existing host Cloudflare Tunnel.
 
 ## Project layout
 
@@ -61,7 +61,7 @@ Docker Compose can run the API with persistent SQLite storage and a Cloudflare T
 │       └── tsconfig.json       # Mobile TypeScript config
 ├── .dockerignore               # Allowlisted backend-only Docker build context
 ├── .env.example                # Production Docker Compose environment template
-├── compose.yaml                # API, cloudflared, and persistent SQLite volume
+├── compose.yaml                # API and persistent SQLite volume
 ├── model.md                    # Financial and authentication data-model notes
 ├── package.json                # Workspace root scripts
 ├── pnpm-lock.yaml              # Single workspace lockfile
@@ -141,8 +141,10 @@ SQLite dependencies for the target architecture. The final image runs compiled J
 the non-root `node` user, with production dependencies, shared contracts, and migrations.
 You do not need Node.js or pnpm installed on the host.
 
-The [Compose stack](./compose.yaml) runs one API and one cloudflared container, with no published
-host ports. Only `/data` and temporary storage are writable in the API container.
+The [Compose stack](./compose.yaml) pulls the published Linux ARM64 image
+`ghcr.io/tapanmeena/welyt-api:latest` and runs one API container. Port 3000 is published only on
+the Pi's `127.0.0.1` interface for an existing cloudflared connector running directly on the host,
+not in another container. Only `/data` and temporary storage are writable in the API container.
 The [Docker build allowlist](./.dockerignore) excludes mobile code, `local/`, environment files,
 databases, and host dependencies.
 
@@ -158,7 +160,6 @@ Edit the root `.env`, not `apps/api/.env`, and set:
 
 - `JWT_ACCESS_SECRET` to the generated value; preserve it across upgrades
 - `SMTP_USER` and `SMTP_PASS` to working SMTP credentials
-- `CLOUDFLARED_TUNNEL_TOKEN` to a remotely managed tunnel's token
 - `APP_SCHEME` to `welyt`, `welyt-preview`, or `welyt-dev`, matching the installed app
 
 Gmail defaults to port 465 and requires a Google App Password. Other SMTP providers can override
@@ -166,43 +167,49 @@ Gmail defaults to port 465 and requires a Google App Password. Other SMTP provid
 back to console delivery. Leave `CORS_ORIGINS` empty for native-only use; for web, list exact
 frontend origins separated by commas. Single-quote environment values containing `$`.
 
-Create a tunnel in the
-[Cloudflare dashboard](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/).
-For its published application route, use a hostname such as `welyt-api.example.com` and the
-HTTP service URL `http://api:3000`. Do not use `localhost`, which would address the cloudflared
-container itself. The API listens on `0.0.0.0` inside its container; neither service needs router
-port-forwarding or an additional reverse proxy.
+Use your existing host cloudflared connector. In the
+[Cloudflare dashboard](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/),
+set the published application route to a hostname such as `welyt-api.example.com` and the
+HTTP service URL `http://127.0.0.1:3000`. The API listens on `0.0.0.0` inside its container,
+but Docker publishes it only on the Pi's loopback interface, not its LAN interface.
+The stack does not start a tunnel or need a tunnel token. No router port-forwarding or
+additional reverse proxy is required.
 
 > [!IMPORTANT]
 > Keep `.env`, database backups, and tunnel credentials private. They are not image contents.
 > Leave Cloudflare caching disabled for authenticated responses. An interactive Cloudflare Access
 > login also requires explicit mobile-client integration; the API already uses bearer authentication.
 
-Compose reserves `172.30.250.3` for cloudflared on `172.30.250.0/29`. The API trusts forwarding
-headers only from that address, preserving per-client rate limits without trusting arbitrary
-forwarded IPs. If this subnet overlaps another network, change the subnet, cloudflared's
-`ipv4_address`, and the API's `TRUST_PROXY` together. Outside Compose, `TRUST_PROXY` defaults to
-disabled and accepts only comma-separated IP addresses or CIDRs.
+Compose uses the subnet `172.30.250.0/29` with gateway `172.30.250.1`. Connections from the
+host connector reach the API through that gateway, so the API trusts forwarding headers only
+from that address, preserving per-client rate limits. If this subnet overlaps another network,
+change the subnet, its `gateway`, and the API's `TRUST_PROXY` together. Outside Compose,
+`TRUST_PROXY` defaults to disabled and accepts only comma-separated IP addresses or CIDRs.
 
-#### Build, start, and verify
+#### Pull, start, and verify
 
 ```bash
 docker compose config --quiet
-docker compose build --pull api
+docker compose pull api
 docker compose up -d --wait
 docker compose ps
-docker compose logs --tail=100 api cloudflared
+docker compose logs --tail=100 api
+curl --fail http://127.0.0.1:3000/health
 curl --fail https://welyt-api.example.com/health
 ```
 
 Replace the example hostname with your own. The health endpoint should return `{"status":"ok"}`.
-The tunnel starts after the API passes its container health check. Docker restarts either
-container after a crash or host reboot. Keep one API instance because it owns SQLite and
-scheduled jobs. Health checks report failures but do not themselves restart an unhealthy process.
+Docker restarts the API after a crash or host reboot; manage the existing host tunnel separately.
+Keep one API instance because it owns SQLite and scheduled jobs. Health checks report failures
+but do not themselves restart an unhealthy process.
 
-Building on a 64-bit Pi selects Linux ARM64 automatically. To build for the Pi on another host,
-use `docker buildx build --platform linux/arm64 --load -f apps/api/Dockerfile -t welyt-api:local .`
-and transfer/load that image on the Pi before running Compose. Never copy host `node_modules`.
+If an older version of this stack ran a cloudflared container, remove that retired container
+in Portainer without stopping your host connector.
+
+To build a local image instead, use
+`docker buildx build --platform linux/arm64 --load -f apps/api/Dockerfile -t welyt-api:local .`
+and set `image: welyt-api:local` with `pull_policy: never` in Compose. Transfer/load that image
+on the Pi if built elsewhere. Never copy host `node_modules`.
 
 Set `EXPO_PUBLIC_API_URL=https://welyt-api.example.com` in the matching mobile/EAS environment,
 then publish a compatible JavaScript update or build. No native rebuild is required solely for
@@ -215,9 +222,9 @@ ARM64 runner and publishes to GitHub Container Registry (GHCR). It runs for back
 pushes to the repository's default branch, or manually from **Actions > Publish API image >
 Run workflow** with that branch selected. It does not publish feature branches.
 
-Connect this checkout to a GitHub repository, then commit and push the workflow and Docker build
-inputs to its default branch. The workflow derives its image name from the repository, so no
-GitHub username or repository name needs to be hardcoded:
+Commit and push the workflow and Docker build inputs to the repository's default branch.
+The workflow derives its image name from the repository, so no GitHub username or repository
+name needs to be hardcoded in the workflow:
 
 ```text
 ghcr.io/owner/repository-api:latest
@@ -226,28 +233,28 @@ ghcr.io/owner/repository-api:sha-FULL_COMMIT_SHA
 
 For example, `owner/Welyt` publishes `ghcr.io/owner/welyt-api`. Image names are lowercased
 automatically. The workflow uses the built-in `GITHUB_TOKEN` with package-write permission;
-no publishing PAT or application credentials are needed in GitHub Actions. Keep JWT, SMTP,
-and tunnel credentials on the Pi or in Portainer, not in the repository or image.
+no publishing PAT or application credentials are needed in GitHub Actions. Keep JWT and SMTP
+credentials on the Pi or in Portainer, not in the repository or image. Your existing host
+connector manages its own tunnel credentials.
 
-New GHCR packages default to private. Keep that visibility unless you intend to distribute the
-image publicly. For a private package, add a `ghcr.io` registry in Portainer using your GitHub
-username and a personal access token (classic) with `read:packages` and access to the package.
+The published Welyt image permits anonymous pulls, so registry credentials are not required.
+New GHCR packages default to private. For a private package, add a `ghcr.io` registry in Portainer
+using your GitHub username and a personal access token (classic) with `read:packages` and access to the package.
 Authorize that token for SSO if your organization requires it. Public images can be pulled
 without authentication. See [GHCR authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 In Portainer, select the Pi's Docker Standalone environment and create or update the `welyt`
-stack from [compose.yaml](./compose.yaml). Remove the API's `build:` block, replace its image
-with your published image, and set:
+stack from [compose.yaml](./compose.yaml). It already pulls the published image:
 
 ```yaml
-image: ghcr.io/owner/repository-api:latest
+image: ghcr.io/tapanmeena/welyt-api:latest
 pull_policy: always
 ```
 
-Replace `owner/repository` with the lowercase GitHub repository path. Remove any previous
-`pull_policy: never` setting. Keep the environment variables, `api-data` volume, network,
-and cloudflared service unchanged, and select your GHCR registry for the stack when using a
-private image. Set the required environment variables in Portainer before deploying.
+For a fork or another registry, change `image` to match your published image. Keep the
+environment variables, `api-data` volume, and network unchanged. Select your GHCR registry
+for the stack when using a private image. Set the required environment variables in Portainer
+before deploying, and point the existing host tunnel to `http://127.0.0.1:3000`.
 The Pi only pulls and runs the image; no source checkout, image archive transfer, Node.js, or
 pnpm installation is needed there.
 
@@ -282,17 +289,15 @@ docker compose exec -T api rm /data/welyt-backup.db
 Store backups encrypted outside the Pi and test restoring them. Do not copy only a live `.db`
 file: the database uses WAL and may have uncheckpointed changes.
 
-Back up before deploying a new revision, then rebuild and recreate the containers:
+Back up before deploying a new revision, then pull the image and recreate the container:
 
 ```bash
-docker compose build --pull api
-docker compose pull cloudflared
+docker compose pull api
 docker compose up -d --wait
 ```
 
-The cloudflared image is version-pinned in Compose; update that tag deliberately. Database
-migrations can make an older application image incompatible, so retain a matching backup
-before rolling back.
+Manage cloudflared updates separately on the host. Database migrations can make an older
+application image incompatible, so retain a matching backup before rolling back.
 
 > [!WARNING]
 > Do not run `docker compose down -v`: it deletes the database volume.

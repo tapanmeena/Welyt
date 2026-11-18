@@ -2,10 +2,10 @@ name: welyt
 
 services:
   api:
-    image: welyt-api:local
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+    image: ghcr.io/tapanmeena/welyt-api:latest
+    pull_policy: always
+    ports:
+      - '127.0.0.1:3000:3000'
     init: true
     restart: unless-stopped
     stop_grace_period: 30s
@@ -21,7 +21,7 @@ services:
       HOST: 0.0.0.0
       PORT: '3000'
       DATABASE_URL: /data/welyt.db
-      TRUST_PROXY: 172.30.250.3
+      TRUST_PROXY: 172.30.250.1
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env}
       APP_SCHEME: ${APP_SCHEME:-welyt}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
@@ -39,32 +39,12 @@ services:
     logging:
       driver: local
 
-  cloudflared:
-    image: cloudflare/cloudflared:2026.11.1
-    command: ['tunnel', '--no-autoupdate', 'run']
-    init: true
-    restart: unless-stopped
-    read_only: true
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN:?Set CLOUDFLARED_TUNNEL_TOKEN in .env}
-    depends_on:
-      api:
-        condition: service_healthy
-    networks:
-      backend:
-        ipv4_address: 172.30.250.3
-    logging:
-      driver: local
-
 networks:
   backend:
     ipam:
       config:
         - subnet: 172.30.250.0/29
+          gateway: 172.30.250.1
 
 volumes:
   api-data:
