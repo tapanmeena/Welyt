@@ -4,8 +4,16 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { z } from 'zod';
 
-const REFRESH_TOKEN_KEY = 'welyt.auth.refresh_token';
-const CACHED_USER_KEY = 'welyt.auth.cached_user';
+const androidTestId =
+  __DEV__ && Platform.OS === 'android' ? process.env.EXPO_PUBLIC_WELYT_ANDROID_TEST_ID : undefined;
+if (androidTestId !== undefined && !/^[a-f0-9]{16}$/.test(androidTestId)) {
+  throw new Error('Invalid Android test session ID');
+}
+export const isAndroidTestSession = androidTestId !== undefined;
+const sessionPrefix =
+  androidTestId === undefined ? 'welyt.auth' : `welyt.e2e.${androidTestId}.auth`;
+const REFRESH_TOKEN_KEY = `${sessionPrefix}.refresh_token`;
+const CACHED_USER_KEY = `${sessionPrefix}.cached_user`;
 
 const persistedSessionSchema = z.object({
   refreshToken: z.string().min(1),

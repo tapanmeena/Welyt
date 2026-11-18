@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "@xmldom/xmldom": "0.9.12",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~58.0.4",
     "eslint-config-prettier": "10.1.8",
@@ -68,6 +69,7 @@
     "lint": "expo lint",
     "lint:fix": "expo lint --fix",
     "check:dependencies": "expo install --check",
+    "test:android": "node --test e2e/accounts.android.test.mjs",
     "export:check": "expo export --platform android --platform ios --output-dir dist"
   }
 }

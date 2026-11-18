@@ -1,6 +1,7 @@
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useState, type ComponentRef, type Ref } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { isAndroidTestSession } from '@/lib/secure-storage';
 import { colors, radii } from '@/theme/colors';
 
 export type FormTextInputHandle = ComponentRef<typeof TextInput>;
@@ -45,6 +46,9 @@ export function FormTextField({
       >
         <TextInput
           {...inputProps}
+          {...(isAndroidTestSession
+            ? ({ autoComplete: 'off', importantForAutofill: 'no' } as const)
+            : {})}
           ref={inputRef}
           editable={editable}
           {...(resolvedBlurOnSubmit !== undefined ? { blurOnSubmit: resolvedBlurOnSubmit } : {})}

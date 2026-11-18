@@ -184,6 +184,7 @@ Run workspace commands from the repository root:
 | Build / start compiled API                    | `pnpm run api:build` / `pnpm run api:start`            |
 | Generate / apply API Drizzle migrations       | `pnpm run api:db:generate` / `pnpm run api:db:migrate` |
 | Run API integration test suite                | `pnpm test`                                            |
+| Run Android hardware regression tests         | `pnpm run mobile:test:android`                         |
 | Type-check all workspaces                     | `pnpm run typecheck`                                   |
 | Lint / auto-fix all workspaces                | `pnpm run lint` / `pnpm run lint:fix`                  |
 | Check / apply formatting                      | `pnpm run format:check` / `pnpm run format`            |
@@ -197,6 +198,19 @@ Run workspace commands from the repository root:
 `pnpm test` runs the API integration tests (`node --test`) against isolated `:memory:` SQLite
 databases. `mobile:export:check` writes JavaScript bundles to `apps/mobile/dist/`; it does not
 compile a native client or verify runtime behavior.
+
+### Android hardware regression tests
+
+Connect an unlocked Android phone over USB, authorize it in `adb devices -l`, and install the
+Welyt development client. Run `pnpm run mobile:test:android` from the repository root. Set
+`ANDROID_SERIAL` if more than one USB device is attached. No existing Metro or API server is
+required.
+
+The suite drives the phone and cold-restarts Welyt, so keep the phone unlocked and leave it alone
+while the cases run. It uses a disposable API database, fixed FX fixtures, and separate
+development-only sign-in keys. The regular Welyt session and local API database are not used.
+The cases cover verified sign-in, INR valuation with an FX date, incomplete totals, and correction
+history and session recovery after a restart.
 
 ## App identity and EAS
 

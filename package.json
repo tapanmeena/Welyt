@@ -10,6 +10,7 @@
     "mobile:ios": "pnpm --filter welyt-mobile run ios",
     "mobile:prebuild": "pnpm --filter welyt-mobile run prebuild",
     "mobile:export:check": "pnpm run shared:build && pnpm --filter welyt-mobile run export:check",
+    "mobile:test:android": "pnpm run shared:build && pnpm --filter welyt-mobile run test:android",
     "api": "pnpm run shared:build && pnpm --filter welyt-api run dev",
     "api:build": "pnpm run shared:build && pnpm --filter welyt-api run build",
     "api:start": "pnpm --filter welyt-api run start",
