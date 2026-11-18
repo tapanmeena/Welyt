@@ -1,3 +1,7 @@
+---
+description: Repository conventions for the Welyt mobile app and API.
+---
+
 # Repository guidance
 
 ## Commands
@@ -56,11 +60,15 @@ a new client. Use Expo-compatible dependency selections
 Decimal.js, charts, biometric local-auth, document picker, notifications, and financial domain
 models remain installed in `apps/mobile` for upcoming financial modules.
 
-`apps/mobile/app.json` is the source for native identity, config plugins, permissions, branding, and
-Expo Updates configuration. `apps/mobile/eas.json` defines internal development-client builds:
-`development` produces an Android APK, and `development-simulator` extends it for the iOS simulator.
-Both have their own update channels. Native projects should be synchronized through prebuild when
-native work is requested.
+`apps/mobile/app.config.ts` is the source for native identity, config plugins, permissions, branding,
+and Expo Updates configuration. `APP_VARIANT` defaults to `development`; EAS profiles set it
+explicitly. Development uses `Welyt Dev` / `com.tapanmeena.welyt.dev` / `welyt-dev`, preview uses
+`Welyt Preview` / `com.tapanmeena.welyt.preview` / `welyt-preview`, and production keeps
+`Welyt` / `com.tapanmeena.welyt` / `welyt`. Configure each API's `APP_SCHEME` to match.
+`apps/mobile/eas.json` defines development APK, iOS development-simulator, preview APK, and production
+AAB profiles with separate update channels. The simulator inherits the development identity.
+The root `mobile:update` script sets `APP_VARIANT` from its required `--environment` flag before
+publishing. Native projects should be synchronized through prebuild when native work is requested.
 
 ## Conventions and local references
 

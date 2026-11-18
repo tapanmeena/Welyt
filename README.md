@@ -1,4 +1,7 @@
-# Welyt
+---
+title: Welyt
+description: Develop and build the Welyt mobile app and API in a pnpm workspace.
+---
 
 Welyt is a pnpm workspace monorepo for a personal finance application, containing shared Zod
 contracts (`packages/shared`), an Expo / React Native / TypeScript client (`apps/mobile`), and a
@@ -50,8 +53,8 @@ configuration are not implemented yet.
 │       │   ├── lib/            # Fetch client with 401 refresh queue, SecureStore adapter
 │       │   └── theme/          # Brand color palette
 │       ├── .env.example        # Mobile environment template
-│       ├── app.json            # Expo identity, plugins, permissions, updates
-│       ├── eas.json            # Internal development-client build profiles
+│       ├── app.config.ts       # Variant identities, plugins, permissions, updates
+│       ├── eas.json            # Development, preview APK, and production AAB profiles
 │       ├── eslint.config.js    # Expo flat config and Prettier compatibility
 │       ├── package.json        # Mobile dependencies and scripts
 │       └── tsconfig.json       # Mobile TypeScript config
@@ -82,7 +85,7 @@ pnpm install --frozen-lockfile
 pnpm run mobile
 ```
 
-This starts Metro with `--dev-client` in `apps/mobile`. Open an installed Welyt development client
+This starts Metro with `--dev-client` in `apps/mobile`. Open an installed Welyt Dev development client
 and connect it to Metro. A compatible development client must be built and installed first;
 `pnpm run mobile` does not create a native binary.
 
@@ -112,6 +115,9 @@ This builds `@welyt/shared`, runs pending Drizzle SQLite migrations against `DAT
 and `SMTP_PASS` (your 16-character Google App Password) in `apps/api/.env` to deliver real
 verification and password reset emails over Gmail SMTP; when left blank, codes and `welyt://` deep
 links are logged to the API console.
+
+For development email deep links, set `APP_SCHEME=welyt-dev` in `apps/api/.env`, as shown in the
+environment template. Use `welyt-preview` for a preview API and `welyt` for production.
 
 ### Daily exchange rates
 
@@ -212,6 +218,7 @@ Run workspace commands from the repository root:
 | Generate / apply API Drizzle migrations       | `pnpm run api:db:generate` / `pnpm run api:db:migrate` |
 | Run API integration test suite                | `pnpm test`                                            |
 | Run Android hardware regression tests         | `pnpm run mobile:test:android`                         |
+| Test mobile variant and update configuration  | `pnpm --filter welyt-mobile run test:config`           |
 | Type-check all workspaces                     | `pnpm run typecheck`                                   |
 | Lint / auto-fix all workspaces                | `pnpm run lint` / `pnpm run lint:fix`                  |
 | Check / apply formatting                      | `pnpm run format:check` / `pnpm run format`            |
@@ -219,6 +226,9 @@ Run workspace commands from the repository root:
 | Run format, type, lint, and dependency checks | `pnpm run check`                                       |
 | Additional Expo diagnostics (run in mobile)   | `cd apps/mobile && pnpm dlx expo-doctor`               |
 | Export Android and iOS JS bundles             | `pnpm run mobile:export:check`                         |
+| Create Android production AAB                 | `pnpm run mobile:build:android:production`             |
+| Create Android preview APK                    | `pnpm run mobile:build:android:preview`                |
+| Publish Expo updates (specify channel/env)     | `pnpm run mobile:update`                               |
 | Generate native projects                      | `pnpm run mobile:prebuild`                             |
 | Build and run locally on Android / iOS        | `pnpm run mobile:android` / `pnpm run mobile:ios`      |
 
@@ -242,31 +252,92 @@ and saving or copying a monthly plan without changing receipts or cash.
 
 ## App identity and EAS
 
-[apps/mobile/app.json](./apps/mobile/app.json) is the source of truth for native configuration. Run
-EAS CLI commands from `apps/mobile/`.
+[apps/mobile/app.config.ts](./apps/mobile/app.config.ts) is the source of truth for native configuration. The
+package scripts below run from the repository root and invoke EAS inside the mobile workspace.
+Run direct EAS CLI commands from `apps/mobile/`.
 
 | Setting                     | Current value                          |
 | --------------------------- | -------------------------------------- |
-| Display name                | `Welyt`                                |
+| Production display name     | `Welyt`                                |
 | Expo slug                   | `Welyt-mobile`                         |
-| App version                 | `0.1.0`                                |
-| Android package             | `com.tapanmeena.welyt`                 |
-| iOS bundle identifier       | `com.tapanmeena.welyt`                 |
-| URI scheme                  | `welyt`                                |
+| App version                 | `0.1.1`                                |
+| Production Android package  | `com.tapanmeena.welyt`                 |
+| Production iOS bundle ID    | `com.tapanmeena.welyt`                 |
+| Production URI scheme       | `welyt`                                |
 | EAS project ID              | `38ca27d6-eb6f-4d3f-8f9f-c3bb59e370dc` |
 | Expo Updates runtime policy | `appVersion`                           |
 
+`APP_VARIANT` selects the native identity. Local Expo commands default to `development`; EAS build
+profiles set the variable explicitly. Unknown values fail configuration instead of selecting
+another app.
+
+| Variant       | Display name    | Android package and iOS bundle ID | URI scheme      |
+| ------------- | --------------- | --------------------------------- | --------------- |
+| `development` | `Welyt Dev`     | `com.tapanmeena.welyt.dev`         | `welyt-dev`     |
+| `preview`     | `Welyt Preview` | `com.tapanmeena.welyt.preview`     | `welyt-preview` |
+| `production`  | `Welyt`         | `com.tapanmeena.welyt`             | `welyt`         |
+
+These variants can coexist on one device. The iOS simulator profile inherits the development
+identity. Only development registers Expo's generated development-client scheme, so Metro links
+do not open preview or production. Configure each API's `APP_SCHEME` to match its variant.
+
+Rebuild and reinstall the native clients after this migration. The Expo version is now `0.1.1`,
+which also changes the `appVersion` update runtime so new bundles do not target older clients.
+Development and preview use new application IDs and do not inherit the old installation's local
+session or data. Production keeps its existing identifier.
+
 Expo Updates is installed and configured with this project's update URL. EAS uses remote app-version
-sourcing. The [EAS configuration](./apps/mobile/eas.json) defines only internal development-client
-profiles:
+sourcing. The [EAS configuration](./apps/mobile/eas.json) defines these build profiles:
 
 | Profile                 | Configuration                                  | Update channel          |
 | ----------------------- | ---------------------------------------------- | ----------------------- |
 | `development`           | Development client; Android APK                | `development`           |
 | `development-simulator` | Extends development; targets the iOS simulator | `development-simulator` |
+| `preview`               | Standalone Android APK; no development client  | `preview`               |
+| `production`            | Store-distributed Android App Bundle (AAB)     | `production`            |
 
-No preview or production build profile is defined. EAS configuration does not establish that a
-binary has been built, credentials are available, or an update has been published.
+EAS configuration does not establish that a binary has been built, credentials are available, or
+an update has been published.
+
+### Build Android releases and publish updates
+
+The `preview` and `production` profiles use their matching EAS environments and run without Metro.
+Set `EXPO_PUBLIC_API_URL` in each environment to an API URL reachable from the device, not
+`localhost`. This value is bundled into the app and must not contain secrets. The scripts require
+EAS CLI (`eas`) on your PATH and an Expo login.
+
+Before any remote build, inspect the upload archive to ensure it excludes private local material.
+Then choose the production AAB or preview APK command from the repository root:
+
+```bash
+pnpm run mobile:build:android:production
+pnpm run mobile:build:android:preview
+```
+
+The `eas-build-post-install` hook compiles `@welyt/shared` on the build worker before the release
+bundle is generated. Install the preview APK on an Android device or emulator; distribute the
+production AAB through Google Play.
+
+To publish JavaScript and asset updates to preview, run from the repository root:
+
+```bash
+pnpm run mobile:update --channel preview --environment preview --platform android --message "Describe the update"
+```
+
+The update script builds shared contracts first, sets `APP_VARIANT` from `--environment`, and
+forwards flags to `eas update`. The environment must be `development`, `preview`, or `production`.
+To target production, use `--channel production --environment production` instead. Keep any
+`APP_VARIANT` variable configured in EAS aligned with that environment.
+
+Use the same EAS environment for builds and updates so their bundled configuration matches.
+The profile's `channel` controls which update stream the app receives; change it for future builds
+and use the matching `--channel` when publishing. Update URL and runtime settings remain configurable
+in [apps/mobile/app.config.ts](./apps/mobile/app.config.ts).
+
+Updates must match the installed app's runtime. With the `appVersion` policy, bump the config's `version`
+and build a new binary whenever native dependencies or native configuration change. Compatible updates
+are checked on app launch and normally applied on a subsequent launch; force close and reopen the
+app twice to test a published update.
 
 ### Prepared native capabilities
 
@@ -278,7 +349,7 @@ invoke these APIs or request runtime permissions.
 The notifications plugin enables remote-notification configuration in development mode and disables
 background remote notifications. Actual remote push delivery still requires platform credentials
 and signing/capability setup; no Android Firebase configuration file is referenced in
-`apps/mobile/app.json`.
+[apps/mobile/app.config.ts](./apps/mobile/app.config.ts).
 
 ## Installed libraries
 

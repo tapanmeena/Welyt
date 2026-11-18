@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
 import path from 'node:path';
@@ -19,11 +18,9 @@ import { FRANKFURTER_SOURCE } from '../../api/src/modules/fx/frankfurter.provide
 import { connectAndroid } from './android-device.mjs';
 
 const mobileDir = fileURLToPath(new URL('../', import.meta.url));
-const metroCli = path.join(
-  path.dirname(createRequire(import.meta.url).resolve('expo/package.json')),
-  'bin',
-  'cli',
-);
+const require = createRequire(import.meta.url);
+const { getConfig } = require('expo/config');
+const metroCli = path.join(path.dirname(require.resolve('expo/package.json')), 'bin', 'cli');
 const fixtureName = 'Welyt Android Fixture';
 
 async function fixtureApi(cleanup) {
@@ -217,7 +214,8 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
     if (errors.length) throw new AggregateError(errors, 'Android test cleanup failed');
   });
 
-  const { expo } = JSON.parse(await readFile(path.join(mobileDir, 'app.json'), 'utf8'));
+  process.env.APP_VARIANT = 'development';
+  const { exp: expo } = getConfig(mobileDir);
   const device = await connectAndroid(expo.android.package, `exp+${expo.slug.toLowerCase()}`);
   const api = await fixtureApi(cleanup);
   const metro = await startMetro(api.port, cleanup);
