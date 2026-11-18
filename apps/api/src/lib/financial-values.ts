@@ -1,9 +1,15 @@
-import { BALANCE_INPUT_PATTERN, financialDateSchema, indiaBusinessDate } from '@welyt/shared';
+import {
+  financialDateSchema,
+  formatScaledDecimal,
+  indiaBusinessDate,
+  parseDecimalHundredths,
+} from '@welyt/shared';
 import { fieldValidationError, parseInput } from './errors.ts';
 
 export {
   currencyCodeSchema,
   financialDateSchema,
+  formatHundredths,
   indiaBusinessDate,
   indiaFiscalWindow,
 } from '@welyt/shared';
@@ -31,16 +37,15 @@ export function parseBalanceHundredths(balance: string, minorUnits: number): num
 
 export function parseAmountHundredths(value: string, minorUnits: number, field: string): number {
   const label = field === 'balance' ? 'balance' : 'amount';
-  const match = BALANCE_INPUT_PATTERN.exec(value);
-  const whole = match?.[2];
-  if (!whole) {
+  const parsed = parseDecimalHundredths(value);
+  if (!parsed) {
     throw fieldValidationError(
       field,
       `Enter a signed decimal ${label} with up to two fractional digits`,
     );
   }
 
-  const fraction = match?.[3] ?? '';
+  const { fraction, hundredths } = parsed;
   if (/[1-9]/.test(fraction.slice(minorUnits))) {
     throw fieldValidationError(
       field,
@@ -48,21 +53,10 @@ export function parseAmountHundredths(value: string, minorUnits: number, field: 
     );
   }
 
-  const hundredths = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
-  if (hundredths > maxSafeInteger) {
+  if (hundredths < -maxSafeInteger || hundredths > maxSafeInteger) {
     throw fieldValidationError(field, `The ${label} exceeds the supported range`);
   }
-  return Number(match?.[1] === '-' ? -hundredths : hundredths);
-}
-
-function formatScaledDecimal(value: bigint, scale: bigint, fractionalDigits: number): string {
-  const magnitude = value < 0n ? -value : value;
-  const fraction = String(magnitude % scale).padStart(fractionalDigits, '0');
-  return `${value < 0n ? '-' : ''}${magnitude / scale}.${fraction}`;
-}
-
-export function formatHundredths(hundredths: number | bigint): string {
-  return formatScaledDecimal(BigInt(hundredths), 100n, 2);
+  return Number(hundredths);
 }
 
 export function formatRateE8(rateE8: number): string {

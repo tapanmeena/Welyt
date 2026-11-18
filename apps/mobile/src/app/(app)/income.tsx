@@ -153,6 +153,11 @@ function IncomeList({ userId }: { userId: string }) {
     >
       <StatusBanner tone="success" message={notice} />
       <AuthButton
+        label="Monthly Plan"
+        variant="secondary"
+        onPress={() => router.push('/monthly-plan')}
+      />
+      <AuthButton
         label="Record income"
         onPress={() => {
           setNotice(null);

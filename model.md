@@ -14,12 +14,13 @@ Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_
 and `fx_rates`. The verified-user Accounts API exposes owner-scoped account and snapshot
 operations and INR valuation using stored Frankfurter rates. Mobile Accounts & Cash uses those
 account and snapshot operations, and the Workspace shows the INR cash summary. Income & Plan
-records standalone receipts and shows INR income history. Monthly forecasting, other financial
-modules, and additional user preferences are not implemented. Entity fields below describe
-logical records, not SQL column definitions.
+records standalone receipts, shows INR income history, and supports revisioned INR monthly
+plans. Other financial modules and additional user preferences are not implemented. Entity
+fields below describe logical records, not SQL column definitions.
 
-The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
-Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
+Accounts & Cash was the first financial milestone, followed by Income & Plan. Investments,
+Loans & Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains
+deferred.
 
 Financial records are personal initially. IPO Tracker additionally supports family applicant
 profiles managed by the user, without family logins or shared-workspace access. Managing a
@@ -274,13 +275,29 @@ month and financial-year totals incomplete. The API returns a known subtotal in 
 In the mobile app, open **Income & Plan** from **Workspace** to record or correct receipts
 and browse financial years.
 
+### Monthly plans
+
+The `monthly_plans` table stores a plan owner, calendar month, INR forecast income, revision,
+and creation method. A copy references its source version. `plan_allocations` stores ordered
+fixed, flexible, and saving entries for a single immutable version. The current plan is the
+highest saved revision. Drafts remain unsaved until confirmed.
+
+The verified-user planner API exposes:
+
+- `GET /income/plans/:month` reads the current saved plan or returns `plan: null`. Set
+  `revision` to retrieve a previous version.
+- `PUT /income/plans/:month` saves the forecast and allocations as a new version. Submit
+  `expectedRevision` of `0` for a blank month. If the current version changed, the request
+  returns `409` without modifying it.
+- `GET` and `PUT /income/plan-rules/auto-copy` read or update the user's opt-in rule. Enabling
+  it takes effect from the next calendar month. The API checks at India-local midnight and
+  on startup, and only catches up for the current month. An automatic copy uses the previous
+  month's latest revision saved before the boundary.
+
 ### Proposed planning entities
 
 - `PlanInput`: `id`, `userId`, `kind`, `currencyId`, `amount`, `effectiveFrom`,
   optional `effectiveTo`, optional `loanId`, `notes`
-- `MonthlyPlan`: `id`, `userId`, `month`, `currencyId`, `revision`, `status`
-- `PlanAllocation`: `id`, `monthlyPlanId`, `name`, `group`, `amount`, `purpose`,
-  optional `goalId`, optional `loanId`
 - `PlanCommitment`: `id`, `userId`, `name`, `currencyId`, `amount`, `frequency`,
   `startsOn`, optional `endsOn`, optional `dueMonth`, optional `loanId`
 
@@ -289,7 +306,12 @@ and browse financial years.
 - Income records are actual receipts. Forecast salary and planned allocations are not receipts.
 - Plans use calendar months. There is no categorized expense tracking or budget-versus-actual
   reporting initially.
-- There is no automatic rollover. Users can copy a prior month's plan.
+- The first monthly planner uses INR and allows saving a plan with a visible shortfall.
+  Each calendar month starts blank by default. Users can prefill an unsaved plan from
+  the previous month, or enable a rule that saves a copy at month start in `Asia/Kolkata`
+  only if the new month has no saved plan.
+- Copying carries forward forecast and allocation amounts, not receipts, unspent money,
+  or balances. Each saved revision is retained independently of its source.
 - Effective-dated salary/EMI inputs produce a preview before future plans are revised.
   Preserve past plans and distinguish copied assumptions from live references.
 - Loan-linked commitments reference the loan's projected EMI; standalone manual inputs also work.

@@ -1,5 +1,10 @@
-import { ACCOUNT_KINDS, DEBT_MODES } from '@welyt/shared';
-import { inArray, sql } from 'drizzle-orm';
+import {
+  ACCOUNT_KINDS,
+  DEBT_MODES,
+  PLAN_ALLOCATION_GROUPS,
+  PLAN_CREATION_METHODS,
+} from '@welyt/shared';
+import { inArray, sql, type SQLWrapper } from 'drizzle-orm';
 import {
   check,
   foreignKey,
@@ -275,6 +280,115 @@ export const incomeReceipts = sqliteTable(
     check(
       'income_receipts_no_self_replacement_check',
       sql`${table.replacesReceiptId} <> ${table.id}`,
+    ),
+  ],
+);
+
+function validPlanMonth(month: SQLWrapper) {
+  return sql`${month} glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]' and substr(${month}, 1, 4) <> '0000' and substr(${month}, 6, 2) between '01' and '12'`;
+}
+
+export const monthlyPlans = sqliteTable(
+  'monthly_plans',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    month: text('month').notNull(),
+    currencyCode: text('currency_code', { enum: ['INR'] })
+      .notNull()
+      .default('INR')
+      .references(() => currencies.code, { onDelete: 'restrict' }),
+    revision: integer('revision').notNull(),
+    forecastHundredths: integer('forecast_hundredths').notNull(),
+    createdAt: text('created_at').notNull(),
+    createdVia: text('created_via', { enum: PLAN_CREATION_METHODS }).notNull(),
+    copiedFromPlanId: text('copied_from_plan_id'),
+  },
+  (table) => [
+    uniqueIndex('monthly_plans_owner_month_revision_idx').on(
+      table.userId,
+      table.month,
+      table.revision,
+    ),
+    uniqueIndex('monthly_plans_owner_id_idx').on(table.userId, table.id),
+    foreignKey({
+      name: 'monthly_plans_same_owner_copy_fk',
+      columns: [table.userId, table.copiedFromPlanId],
+      foreignColumns: [table.userId, table.id],
+    }).onDelete('restrict'),
+    check('monthly_plans_month_check', validPlanMonth(table.month)),
+    check('monthly_plans_currency_check', sql`${table.currencyCode} = 'INR'`),
+    check(
+      'monthly_plans_revision_check',
+      sql`typeof(${table.revision}) = 'integer' and ${table.revision} between 1 and ${maxSafeInteger}`,
+    ),
+    check(
+      'monthly_plans_forecast_check',
+      sql`typeof(${table.forecastHundredths}) = 'integer' and ${table.forecastHundredths} between 0 and ${maxSafeInteger}`,
+    ),
+    check(
+      'monthly_plans_copy_check',
+      sql`(
+      (${table.createdVia} = 'manual' and ${table.copiedFromPlanId} is null) or
+      (${table.createdVia} in ('manual_copy', 'auto_copy') and ${table.revision} = 1 and
+       ${table.copiedFromPlanId} is not null and ${table.copiedFromPlanId} <> ${table.id})
+    )`,
+    ),
+  ],
+);
+
+export const planAllocations = sqliteTable(
+  'plan_allocations',
+  {
+    id: text('id').primaryKey(),
+    monthlyPlanId: text('monthly_plan_id')
+      .notNull()
+      .references(() => monthlyPlans.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    group: text('allocation_group', { enum: PLAN_ALLOCATION_GROUPS }).notNull(),
+    amountHundredths: integer('amount_hundredths').notNull(),
+    position: integer('position').notNull(),
+  },
+  (table) => [
+    uniqueIndex('plan_allocations_plan_position_idx').on(table.monthlyPlanId, table.position),
+    check(
+      'plan_allocations_name_check',
+      sql`trim(${table.name}, char(9, 10, 11, 12, 13, 32)) <> ''`,
+    ),
+    check(
+      'plan_allocations_group_check',
+      inArray(table.group, [...PLAN_ALLOCATION_GROUPS]).inlineParams(),
+    ),
+    check(
+      'plan_allocations_amount_check',
+      sql`typeof(${table.amountHundredths}) = 'integer' and ${table.amountHundredths} between 1 and ${maxSafeInteger}`,
+    ),
+    check(
+      'plan_allocations_position_check',
+      sql`typeof(${table.position}) = 'integer' and ${table.position} >= 0`,
+    ),
+  ],
+);
+
+export const monthlyPlanAutoCopyRules = sqliteTable(
+  'monthly_plan_auto_copy_rules',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+    firstTargetMonth: text('first_target_month'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    check(
+      'monthly_plan_auto_copy_rules_state_check',
+      sql`(
+      (${table.enabled} = 0 and ${table.firstTargetMonth} is null) or
+      (${table.enabled} = 1 and ${table.firstTargetMonth} is not null and ${validPlanMonth(table.firstTargetMonth)})
+    )`,
     ),
   ],
 );

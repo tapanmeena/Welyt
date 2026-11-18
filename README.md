@@ -155,6 +155,17 @@ history. Receipts stay in their original currency. The report uses the latest st
 on or before each receipt date and labels missing or stale rates as incomplete. Recording income
 does not change account balances. If the receipt migration is pending, run `pnpm run api:db:migrate`.
 
+### Plan a month
+
+Open **Monthly Plan** from **Income & Plan**. Enter expected net income and fixed, flexible,
+or saving allocations in INR. A shortfall is shown before saving but does not block the save.
+Each save creates a revision you can revisit.
+
+Use **Copy Previous Month** to prefill a blank month's draft, or enable **Month-start auto-copy**
+to save a copy automatically at the next India-local month boundary. Auto-copy never replaces
+a saved plan. Neither copy option moves money or changes actual receipts and account balances.
+Apply pending planner migrations with `pnpm run api:db:migrate`.
+
 ### Create or refresh a native mobile client
 
 `apps/mobile` does not currently contain generated `android/` or `ios/` directories. Generate them
@@ -217,8 +228,8 @@ The suite drives the phone and cold-restarts Welyt, so keep the phone unlocked a
 while the cases run. It uses a disposable API database, fixed FX fixtures, and separate
 development-only sign-in keys. The regular Welyt session and local API database are not used.
 The cases cover verified sign-in, INR valuation with an FX date, incomplete totals, correction
-history, and session recovery after a restart. They also cover recording and correcting receipts
-and browsing income history without changing cash.
+history, and session recovery after a restart. They also cover receipt correction, income history,
+and saving or copying a monthly plan without changing receipts or cash.
 
 ## App identity and EAS
 

@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import { z } from 'zod';
 import { loadApiEnv, type ApiEnv } from './config/env.ts';
 import { createDatabase, type DatabaseConnection } from './db/client.ts';
+import { startDailyJob } from './lib/daily-job.ts';
 import { AppError, zodToValidationError } from './lib/errors.ts';
 import { createMailer, type Mailer } from './lib/mailer.ts';
 import { registerAccountsRoutes } from './modules/accounts/accounts.routes.ts';
@@ -15,6 +16,7 @@ import { FrankfurterProvider, LAUNCH_FX_CURRENCIES } from './modules/fx/frankfur
 import { startDailyFxRefresh } from './modules/fx/fx.job.ts';
 import { FxService } from './modules/fx/fx.service.ts';
 import { registerIncomeRoutes } from './modules/income/income.routes.ts';
+import { MonthlyPlanService } from './modules/income/monthly-plan.service.ts';
 import { createAuthGuards } from './plugins/auth-guard.ts';
 
 declare module 'fastify' {
@@ -57,6 +59,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     });
 
   let stopFxRefresh: (() => Promise<void>) | undefined;
+  let stopPlanAutoCopy: (() => Promise<void>) | undefined;
   if (env.nodeEnv !== 'test' && env.fxAutoRefresh) {
     const fx = new FxService(database.db, new FrankfurterProvider());
     app.addHook('onReady', async () => {
@@ -66,8 +69,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       );
     });
   }
+  if (env.nodeEnv !== 'test') {
+    const plans = new MonthlyPlanService(database.db);
+    app.addHook('onReady', async () => {
+      stopPlanAutoCopy = startDailyJob(
+        (18 * 60 + 30) * 60_000, // Midnight in Asia/Kolkata.
+        () => plans.runDueAutoCopies(),
+        (created) => {
+          if (created > 0) app.log.info({ created }, 'Copied monthly plans into the current month');
+        },
+        (error) =>
+          app.log.warn({ err: error }, 'Monthly plan auto-copy failed; retrying on the next check'),
+      );
+    });
+  }
   app.addHook('onClose', async () => {
-    await stopFxRefresh?.();
+    await Promise.all([stopFxRefresh?.(), stopPlanAutoCopy?.()]);
     if (ownsDatabase) {
       database.close();
     }

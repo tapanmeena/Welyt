@@ -14,6 +14,7 @@ export default function ProtectedAppLayout() {
       <Stack.Screen name="accounts/index" />
       <Stack.Screen name="accounts/[accountId]" />
       <Stack.Screen name="income" />
+      <Stack.Screen name="monthly-plan" />
     </Stack>
   );
 }

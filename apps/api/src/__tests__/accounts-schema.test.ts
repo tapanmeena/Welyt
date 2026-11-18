@@ -12,6 +12,7 @@ import {
   currencies,
   fxRates,
   incomeReceipts,
+  monthlyPlans,
   users,
 } from '../db/schema.ts';
 
@@ -149,6 +150,31 @@ it('adds income receipts without rewriting existing users, accounts, snapshots, 
   assert.deepEqual(db.select().from(accounts).all(), [account]);
   assert.deepEqual(db.select().from(accountObservations).all(), [snapshot]);
   assert.deepEqual(db.select().from(fxRates).all(), [rate]);
+  assert.deepEqual(sqlite.pragma('foreign_key_check'), []);
+});
+
+it('adds the monthly planner to a database that already contains income receipts', (t) => {
+  const { db, sqlite } = openTestDatabase(t, { migrationsFolder: copyMigrationPrefix(t, 4) });
+  const owner = addUser(db);
+  const receipt = db
+    .insert(incomeReceipts)
+    .values({
+      id: 'existing-income',
+      userId: owner.id,
+      receivedDate: observedOn,
+      type: 'Salary',
+      source: 'Fixture',
+      currencyCode: 'INR',
+      amountHundredths: 125,
+      createdAt,
+    })
+    .returning()
+    .get();
+
+  migrate(db, { migrationsFolder });
+
+  assert.deepEqual(db.select().from(incomeReceipts).all(), [receipt]);
+  assert.deepEqual(db.select().from(monthlyPlans).all(), []);
   assert.deepEqual(sqlite.pragma('foreign_key_check'), []);
 });
 

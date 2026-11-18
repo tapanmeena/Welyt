@@ -7,6 +7,29 @@ export const currencyCodeSchema = z
 export const financialDateSchema = z.iso.date();
 export const BALANCE_INPUT_PATTERN = /^(-?)(0|[1-9]\d{0,13})(?:\.(\d{1,2}))?$/;
 
+export function parseDecimalHundredths(value: string) {
+  const match = BALANCE_INPUT_PATTERN.exec(value);
+  const whole = match?.[2];
+  if (!whole) return null;
+  const fraction = match[3] ?? '';
+  const magnitude = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+  return { fraction, hundredths: match[1] === '-' ? -magnitude : magnitude };
+}
+
+export function formatScaledDecimal(
+  value: bigint,
+  scale: bigint,
+  fractionalDigits: number,
+): string {
+  const magnitude = value < 0n ? -value : value;
+  const fraction = String(magnitude % scale).padStart(fractionalDigits, '0');
+  return `${value < 0n ? '-' : ''}${magnitude / scale}.${fraction}`;
+}
+
+export function formatHundredths(hundredths: number | bigint): string {
+  return formatScaledDecimal(BigInt(hundredths), 100n, 2);
+}
+
 const indiaDateFormatter = new Intl.DateTimeFormat('en', {
   timeZone: 'Asia/Kolkata',
   calendar: 'iso8601',

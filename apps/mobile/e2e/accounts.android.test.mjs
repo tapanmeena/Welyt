@@ -203,7 +203,7 @@ async function step(t, label, action) {
   return passed;
 }
 
-test('Financial modules on a USB Android device', { timeout: 420_000 }, async (t) => {
+test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t) => {
   const cleanup = [];
   t.after(async () => {
     const errors = [];
@@ -291,28 +291,61 @@ test('Financial modules on a USB Android device', { timeout: 420_000 }, async (t
   )
     return;
 
+  if (
+    !(await step(
+      t,
+      'records and corrects income, browses fiscal history, and leaves cash unchanged',
+      async () => {
+        await device.tap('Income & Plan', { scroll: true });
+        await device.expect('No income receipts in this financial year.');
+        await device.tap('Record income');
+        await device.enter('Income type', 'Freelance');
+        await device.enter('Income source', 'Pixel payer');
+        await device.tap(/^USD($| )/, { scroll: true });
+        await device.enter('Amount received', '2.00');
+        await device.tap('Save receipt', { scroll: true });
+        await device.expect('Receipt recorded.', 'Financial year total', 'INR 162.50');
+        await device.tap('Previous year');
+        await device.expect('No income receipts in this financial year.');
+        await device.tap('Next year');
+        await device.expect('Financial year total', 'INR 162.50');
+        await device.tap('Correct receipt', { scroll: true });
+        await device.tap('Notes (optional)', { scroll: true, editor: true });
+        await device.enter('Notes (optional)', 'Correction fixture');
+        await device.tap('Save correction', { scroll: true });
+        await device.expect('Receipt corrected.', 'Financial year total', 'INR 162.50');
+        await device.tap('Back to Workspace');
+        await device.expect('Known cash subtotal', 'INR -62.50');
+      },
+    ))
+  )
+    return;
+
   await step(
     t,
-    'records and corrects income, browses fiscal history, and leaves cash unchanged',
+    'saves a shortfall, copies a blank month, and keeps actual receipts and cash unchanged',
     async () => {
       await device.tap('Income & Plan', { scroll: true });
-      await device.expect('No income receipts in this financial year.');
-      await device.tap('Record income');
-      await device.enter('Income type', 'Freelance');
-      await device.enter('Income source', 'Pixel payer');
-      await device.tap(/^USD($| )/, { scroll: true });
-      await device.enter('Amount received', '2.00');
-      await device.tap('Save receipt', { scroll: true });
-      await device.expect('Receipt recorded.', 'Financial year total', 'INR 162.50');
-      await device.tap('Previous year');
-      await device.expect('No income receipts in this financial year.');
-      await device.tap('Next year');
+      await device.tap('Monthly Plan', { scroll: true });
+      await device.expect('No plan saved for this month.');
+      await device.tap('Create plan');
+      await device.enter('Expected net income (INR)', '100000');
+      await device.tap('Add allocation', { scroll: true });
+      await device.enter('Allocation 1 name', 'Fixed costs');
+      await device.enter('Allocation 1 amount (INR)', '110000');
+      await device.tap('Save plan', { scroll: true });
+      await device.expect('Plan saved.', /Shortfall: INR 10,000\.00/);
+      await device.tap('Next month');
+      await device.expect('No plan saved for this month.');
+      await device.tap('Create plan');
+      await device.tap('Copy Previous Month');
+      await device.expect(/Draft copied from \d{4}-\d{2}\. Nothing is saved yet\./);
+      await device.tap('Save plan', { scroll: true });
+      await device.expect('Plan saved.', 'Copied from the previous month');
+      await device.tap('Enable auto-copy', { scroll: true });
+      await device.expect('Disable auto-copy');
+      await device.tap('Back to Income History');
       await device.expect('Financial year total', 'INR 162.50');
-      await device.tap('Correct receipt', { scroll: true });
-      await device.tap('Notes (optional)', { scroll: true, editor: true });
-      await device.enter('Notes (optional)', 'Correction fixture');
-      await device.tap('Save correction', { scroll: true });
-      await device.expect('Receipt corrected.', 'Financial year total', 'INR 162.50');
       await device.tap('Back to Workspace');
       await device.expect('Known cash subtotal', 'INR -62.50');
       await device.tap('Sign out', { scroll: true });

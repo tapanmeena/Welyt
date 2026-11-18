@@ -1,13 +1,17 @@
 import {
   AUTH_ERROR_CODES,
+  autoCopyRuleInputSchema,
   incomeHistoryQuerySchema,
   incomeListQuerySchema,
   incomeReceiptParamsSchema,
+  monthlyPlanParamsSchema,
+  monthlyPlanQuerySchema,
 } from '@welyt/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppDatabase } from '../../db/client.ts';
 import { AppError, parseInput } from '../../lib/errors.ts';
 import { IncomeService } from './income.service.ts';
+import { MonthlyPlanService } from './monthly-plan.service.ts';
 
 function ownerId(request: FastifyRequest): string {
   if (!request.auth) {
@@ -21,6 +25,7 @@ export async function registerIncomeRoutes(
   { db }: { db: AppDatabase },
 ): Promise<void> {
   const income = new IncomeService(db);
+  const plans = new MonthlyPlanService(db);
 
   app.addHook('onRequest', async (_request, reply) => {
     reply.header('Cache-Control', 'no-store');
@@ -36,6 +41,26 @@ export async function registerIncomeRoutes(
   app.get('/income/history', async (request) => {
     const { fiscalYear } = parseInput(incomeHistoryQuerySchema, request.query);
     return income.getHistory(ownerId(request), fiscalYear);
+  });
+
+  app.get('/income/plans/:month', async (request) => {
+    const { month } = parseInput(monthlyPlanParamsSchema, request.params);
+    const { revision } = parseInput(monthlyPlanQuerySchema, request.query);
+    return { plan: plans.get(ownerId(request), month, revision) };
+  });
+
+  app.put('/income/plans/:month', async (request) => {
+    const { month } = parseInput(monthlyPlanParamsSchema, request.params);
+    return { plan: plans.save(ownerId(request), month, request.body) };
+  });
+
+  app.get('/income/plan-rules/auto-copy', async (request) => {
+    return plans.getAutoCopyRule(ownerId(request));
+  });
+
+  app.put('/income/plan-rules/auto-copy', async (request) => {
+    const { enabled } = parseInput(autoCopyRuleInputSchema, request.body);
+    return plans.setAutoCopyRule(ownerId(request), enabled);
   });
 
   app.post('/income', async (request, reply) => {

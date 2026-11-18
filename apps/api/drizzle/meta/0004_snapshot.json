@@ -1,0 +1,1322 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "83595776-217a-4113-b420-d0a35f38d272",
+  "prevId": "d6a4205f-71ac-474f-b10d-6c412c8d5506",
+  "tables": {
+    "account_observations": {
+      "name": "account_observations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "observed_on": {
+          "name": "observed_on",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "balance_hundredths": {
+          "name": "balance_hundredths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "replaces_observation_id": {
+          "name": "replaces_observation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "account_observations_current_date_idx": {
+          "name": "account_observations_current_date_idx",
+          "columns": [
+            "account_id",
+            "observed_on"
+          ],
+          "isUnique": true,
+          "where": "\"account_observations\".\"retired_at\" is null"
+        },
+        "account_observations_account_id_id_idx": {
+          "name": "account_observations_account_id_id_idx",
+          "columns": [
+            "account_id",
+            "id"
+          ],
+          "isUnique": true
+        },
+        "account_observations_replacement_idx": {
+          "name": "account_observations_replacement_idx",
+          "columns": [
+            "replaces_observation_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "account_observations_account_id_accounts_id_fk": {
+          "name": "account_observations_account_id_accounts_id_fk",
+          "tableFrom": "account_observations",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "account_observations_same_account_replacement_fk": {
+          "name": "account_observations_same_account_replacement_fk",
+          "tableFrom": "account_observations",
+          "tableTo": "account_observations",
+          "columnsFrom": [
+            "account_id",
+            "replaces_observation_id"
+          ],
+          "columnsTo": [
+            "account_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "account_observations_date_check": {
+          "name": "account_observations_date_check",
+          "value": "date(\"account_observations\".\"observed_on\", '+0 days') is \"account_observations\".\"observed_on\""
+        },
+        "account_observations_balance_check": {
+          "name": "account_observations_balance_check",
+          "value": "typeof(\"account_observations\".\"balance_hundredths\") = 'integer' and \"account_observations\".\"balance_hundredths\" between -9007199254740991 and 9007199254740991"
+        },
+        "account_observations_source_check": {
+          "name": "account_observations_source_check",
+          "value": "\"account_observations\".\"source\" = 'manual'"
+        },
+        "account_observations_no_self_replacement_check": {
+          "name": "account_observations_no_self_replacement_check",
+          "value": "\"account_observations\".\"replaces_observation_id\" <> \"account_observations\".\"id\""
+        }
+      }
+    },
+    "accounts": {
+      "name": "accounts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'INR'"
+        },
+        "in_net_worth": {
+          "name": "in_net_worth",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "accounts_owner_archive_idx": {
+          "name": "accounts_owner_archive_idx",
+          "columns": [
+            "user_id",
+            "archived_at",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "accounts_user_id_users_id_fk": {
+          "name": "accounts_user_id_users_id_fk",
+          "tableFrom": "accounts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "accounts_currency_code_currencies_code_fk": {
+          "name": "accounts_currency_code_currencies_code_fk",
+          "tableFrom": "accounts",
+          "tableTo": "currencies",
+          "columnsFrom": [
+            "currency_code"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "accounts_name_check": {
+          "name": "accounts_name_check",
+          "value": "trim(\"accounts\".\"name\", char(9, 10, 11, 12, 13, 32)) <> ''"
+        },
+        "accounts_kind_check": {
+          "name": "accounts_kind_check",
+          "value": "\"accounts\".\"kind\" in ('bank', 'cash', 'ewallet', 'brokerage_cash')"
+        },
+        "accounts_in_net_worth_check": {
+          "name": "accounts_in_net_worth_check",
+          "value": "\"accounts\".\"in_net_worth\" in (0, 1)"
+        }
+      }
+    },
+    "auth_challenges": {
+      "name": "auth_challenges",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "auth_challenges_user_purpose_idx": {
+          "name": "auth_challenges_user_purpose_idx",
+          "columns": [
+            "user_id",
+            "purpose"
+          ],
+          "isUnique": false
+        },
+        "auth_challenges_expires_at_idx": {
+          "name": "auth_challenges_expires_at_idx",
+          "columns": [
+            "expires_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "auth_challenges_user_id_users_id_fk": {
+          "name": "auth_challenges_user_id_users_id_fk",
+          "tableFrom": "auth_challenges",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "auth_sessions": {
+      "name": "auth_sessions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "family_id": {
+          "name": "family_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "refresh_token_hash": {
+          "name": "refresh_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "device_name": {
+          "name": "device_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "auth_sessions_refresh_hash_unique_idx": {
+          "name": "auth_sessions_refresh_hash_unique_idx",
+          "columns": [
+            "refresh_token_hash"
+          ],
+          "isUnique": true
+        },
+        "auth_sessions_user_id_idx": {
+          "name": "auth_sessions_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "auth_sessions_family_id_idx": {
+          "name": "auth_sessions_family_id_idx",
+          "columns": [
+            "family_id"
+          ],
+          "isUnique": false
+        },
+        "auth_sessions_expires_at_idx": {
+          "name": "auth_sessions_expires_at_idx",
+          "columns": [
+            "expires_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "auth_sessions_user_id_users_id_fk": {
+          "name": "auth_sessions_user_id_users_id_fk",
+          "tableFrom": "auth_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "currencies": {
+      "name": "currencies",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "minor_units": {
+          "name": "minor_units",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "currencies_code_check": {
+          "name": "currencies_code_check",
+          "value": "\"currencies\".\"code\" glob '[A-Z][A-Z][A-Z]'"
+        },
+        "currencies_minor_units_check": {
+          "name": "currencies_minor_units_check",
+          "value": "typeof(\"currencies\".\"minor_units\") = 'integer' and \"currencies\".\"minor_units\" between 0 and 2"
+        }
+      }
+    },
+    "fx_rates": {
+      "name": "fx_rates",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "base_currency_code": {
+          "name": "base_currency_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote_currency_code": {
+          "name": "quote_currency_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rate_on": {
+          "name": "rate_on",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rate_e8": {
+          "name": "rate_e8",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "fx_rates_current_provider_idx": {
+          "name": "fx_rates_current_provider_idx",
+          "columns": [
+            "source",
+            "base_currency_code",
+            "quote_currency_code",
+            "rate_on"
+          ],
+          "isUnique": true,
+          "where": "\"fx_rates\".\"user_id\" is null and \"fx_rates\".\"retired_at\" is null"
+        },
+        "fx_rates_current_manual_idx": {
+          "name": "fx_rates_current_manual_idx",
+          "columns": [
+            "user_id",
+            "base_currency_code",
+            "quote_currency_code",
+            "rate_on"
+          ],
+          "isUnique": true,
+          "where": "\"fx_rates\".\"user_id\" is not null and \"fx_rates\".\"retired_at\" is null"
+        }
+      },
+      "foreignKeys": {
+        "fx_rates_base_currency_code_currencies_code_fk": {
+          "name": "fx_rates_base_currency_code_currencies_code_fk",
+          "tableFrom": "fx_rates",
+          "tableTo": "currencies",
+          "columnsFrom": [
+            "base_currency_code"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "fx_rates_quote_currency_code_currencies_code_fk": {
+          "name": "fx_rates_quote_currency_code_currencies_code_fk",
+          "tableFrom": "fx_rates",
+          "tableTo": "currencies",
+          "columnsFrom": [
+            "quote_currency_code"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "fx_rates_user_id_users_id_fk": {
+          "name": "fx_rates_user_id_users_id_fk",
+          "tableFrom": "fx_rates",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "fx_rates_pair_check": {
+          "name": "fx_rates_pair_check",
+          "value": "\"fx_rates\".\"quote_currency_code\" = 'INR' and \"fx_rates\".\"base_currency_code\" <> \"fx_rates\".\"quote_currency_code\""
+        },
+        "fx_rates_date_check": {
+          "name": "fx_rates_date_check",
+          "value": "date(\"fx_rates\".\"rate_on\", '+0 days') is \"fx_rates\".\"rate_on\""
+        },
+        "fx_rates_rate_check": {
+          "name": "fx_rates_rate_check",
+          "value": "typeof(\"fx_rates\".\"rate_e8\") = 'integer' and \"fx_rates\".\"rate_e8\" between 1 and 9007199254740991"
+        },
+        "fx_rates_source_check": {
+          "name": "fx_rates_source_check",
+          "value": "(\n        (\"fx_rates\".\"source\" = 'manual' and \"fx_rates\".\"user_id\" is not null and \"fx_rates\".\"fetched_at\" is null)\n        or (\"fx_rates\".\"source\" <> 'manual' and trim(\"fx_rates\".\"source\") <> '' and \"fx_rates\".\"user_id\" is null and \"fx_rates\".\"fetched_at\" is not null)\n      )"
+        }
+      }
+    },
+    "income_receipts": {
+      "name": "income_receipts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "received_date": {
+          "name": "received_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_hundredths": {
+          "name": "amount_hundredths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gross_hundredths": {
+          "name": "gross_hundredths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tds_hundredths": {
+          "name": "tds_hundredths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "replaces_receipt_id": {
+          "name": "replaces_receipt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "income_receipts_owner_date_idx": {
+          "name": "income_receipts_owner_date_idx",
+          "columns": [
+            "user_id",
+            "received_date",
+            "id"
+          ],
+          "isUnique": false
+        },
+        "income_receipts_owner_id_idx": {
+          "name": "income_receipts_owner_id_idx",
+          "columns": [
+            "user_id",
+            "id"
+          ],
+          "isUnique": true
+        },
+        "income_receipts_replacement_idx": {
+          "name": "income_receipts_replacement_idx",
+          "columns": [
+            "replaces_receipt_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "income_receipts_user_id_users_id_fk": {
+          "name": "income_receipts_user_id_users_id_fk",
+          "tableFrom": "income_receipts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "income_receipts_currency_code_currencies_code_fk": {
+          "name": "income_receipts_currency_code_currencies_code_fk",
+          "tableFrom": "income_receipts",
+          "tableTo": "currencies",
+          "columnsFrom": [
+            "currency_code"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "income_receipts_same_owner_replacement_fk": {
+          "name": "income_receipts_same_owner_replacement_fk",
+          "tableFrom": "income_receipts",
+          "tableTo": "income_receipts",
+          "columnsFrom": [
+            "user_id",
+            "replaces_receipt_id"
+          ],
+          "columnsTo": [
+            "user_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "income_receipts_date_check": {
+          "name": "income_receipts_date_check",
+          "value": "date(\"income_receipts\".\"received_date\", '+0 days') is \"income_receipts\".\"received_date\""
+        },
+        "income_receipts_type_check": {
+          "name": "income_receipts_type_check",
+          "value": "trim(\"income_receipts\".\"type\", char(9, 10, 11, 12, 13, 32)) <> ''"
+        },
+        "income_receipts_source_check": {
+          "name": "income_receipts_source_check",
+          "value": "trim(\"income_receipts\".\"source\", char(9, 10, 11, 12, 13, 32)) <> ''"
+        },
+        "income_receipts_amount_check": {
+          "name": "income_receipts_amount_check",
+          "value": "typeof(\"income_receipts\".\"amount_hundredths\") = 'integer' and \"income_receipts\".\"amount_hundredths\" between 1 and 9007199254740991"
+        },
+        "income_receipts_gross_check": {
+          "name": "income_receipts_gross_check",
+          "value": "\"income_receipts\".\"gross_hundredths\" is null or (\n        typeof(\"income_receipts\".\"gross_hundredths\") = 'integer' and\n        \"income_receipts\".\"gross_hundredths\" between \"income_receipts\".\"amount_hundredths\" and 9007199254740991\n      )"
+        },
+        "income_receipts_tds_check": {
+          "name": "income_receipts_tds_check",
+          "value": "\"income_receipts\".\"tds_hundredths\" is null or (\n        typeof(\"income_receipts\".\"tds_hundredths\") = 'integer' and\n        \"income_receipts\".\"tds_hundredths\" between 0 and 9007199254740991 and\n        (\"income_receipts\".\"gross_hundredths\" is null or \"income_receipts\".\"tds_hundredths\" <= \"income_receipts\".\"gross_hundredths\" - \"income_receipts\".\"amount_hundredths\")\n      )"
+        },
+        "income_receipts_inactive_state_check": {
+          "name": "income_receipts_inactive_state_check",
+          "value": "\"income_receipts\".\"retired_at\" is null or \"income_receipts\".\"archived_at\" is null"
+        },
+        "income_receipts_no_self_replacement_check": {
+          "name": "income_receipts_no_self_replacement_check",
+          "value": "\"income_receipts\".\"replaces_receipt_id\" <> \"income_receipts\".\"id\""
+        }
+      }
+    },
+    "monthly_plan_auto_copy_rules": {
+      "name": "monthly_plan_auto_copy_rules",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "first_target_month": {
+          "name": "first_target_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "monthly_plan_auto_copy_rules_user_id_users_id_fk": {
+          "name": "monthly_plan_auto_copy_rules_user_id_users_id_fk",
+          "tableFrom": "monthly_plan_auto_copy_rules",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "monthly_plan_auto_copy_rules_state_check": {
+          "name": "monthly_plan_auto_copy_rules_state_check",
+          "value": "(\n      (\"monthly_plan_auto_copy_rules\".\"enabled\" = 0 and \"monthly_plan_auto_copy_rules\".\"first_target_month\" is null) or\n      (\"monthly_plan_auto_copy_rules\".\"enabled\" = 1 and \"monthly_plan_auto_copy_rules\".\"first_target_month\" is not null and \"monthly_plan_auto_copy_rules\".\"first_target_month\" glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]' and substr(\"monthly_plan_auto_copy_rules\".\"first_target_month\", 1, 4) <> '0000' and substr(\"monthly_plan_auto_copy_rules\".\"first_target_month\", 6, 2) between '01' and '12')\n    )"
+        }
+      }
+    },
+    "monthly_plans": {
+      "name": "monthly_plans",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'INR'"
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "forecast_hundredths": {
+          "name": "forecast_hundredths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_via": {
+          "name": "created_via",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "copied_from_plan_id": {
+          "name": "copied_from_plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "monthly_plans_owner_month_revision_idx": {
+          "name": "monthly_plans_owner_month_revision_idx",
+          "columns": [
+            "user_id",
+            "month",
+            "revision"
+          ],
+          "isUnique": true
+        },
+        "monthly_plans_owner_id_idx": {
+          "name": "monthly_plans_owner_id_idx",
+          "columns": [
+            "user_id",
+            "id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "monthly_plans_user_id_users_id_fk": {
+          "name": "monthly_plans_user_id_users_id_fk",
+          "tableFrom": "monthly_plans",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "monthly_plans_currency_code_currencies_code_fk": {
+          "name": "monthly_plans_currency_code_currencies_code_fk",
+          "tableFrom": "monthly_plans",
+          "tableTo": "currencies",
+          "columnsFrom": [
+            "currency_code"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "monthly_plans_same_owner_copy_fk": {
+          "name": "monthly_plans_same_owner_copy_fk",
+          "tableFrom": "monthly_plans",
+          "tableTo": "monthly_plans",
+          "columnsFrom": [
+            "user_id",
+            "copied_from_plan_id"
+          ],
+          "columnsTo": [
+            "user_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "monthly_plans_month_check": {
+          "name": "monthly_plans_month_check",
+          "value": "\"monthly_plans\".\"month\" glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]' and substr(\"monthly_plans\".\"month\", 1, 4) <> '0000' and substr(\"monthly_plans\".\"month\", 6, 2) between '01' and '12'"
+        },
+        "monthly_plans_currency_check": {
+          "name": "monthly_plans_currency_check",
+          "value": "\"monthly_plans\".\"currency_code\" = 'INR'"
+        },
+        "monthly_plans_revision_check": {
+          "name": "monthly_plans_revision_check",
+          "value": "typeof(\"monthly_plans\".\"revision\") = 'integer' and \"monthly_plans\".\"revision\" between 1 and 9007199254740991"
+        },
+        "monthly_plans_forecast_check": {
+          "name": "monthly_plans_forecast_check",
+          "value": "typeof(\"monthly_plans\".\"forecast_hundredths\") = 'integer' and \"monthly_plans\".\"forecast_hundredths\" between 0 and 9007199254740991"
+        },
+        "monthly_plans_copy_check": {
+          "name": "monthly_plans_copy_check",
+          "value": "(\n      (\"monthly_plans\".\"created_via\" = 'manual' and \"monthly_plans\".\"copied_from_plan_id\" is null) or\n      (\"monthly_plans\".\"created_via\" in ('manual_copy', 'auto_copy') and \"monthly_plans\".\"revision\" = 1 and\n       \"monthly_plans\".\"copied_from_plan_id\" is not null and \"monthly_plans\".\"copied_from_plan_id\" <> \"monthly_plans\".\"id\")\n    )"
+        }
+      }
+    },
+    "plan_allocations": {
+      "name": "plan_allocations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "monthly_plan_id": {
+          "name": "monthly_plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "allocation_group": {
+          "name": "allocation_group",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_hundredths": {
+          "name": "amount_hundredths",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "plan_allocations_plan_position_idx": {
+          "name": "plan_allocations_plan_position_idx",
+          "columns": [
+            "monthly_plan_id",
+            "position"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "plan_allocations_monthly_plan_id_monthly_plans_id_fk": {
+          "name": "plan_allocations_monthly_plan_id_monthly_plans_id_fk",
+          "tableFrom": "plan_allocations",
+          "tableTo": "monthly_plans",
+          "columnsFrom": [
+            "monthly_plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "plan_allocations_name_check": {
+          "name": "plan_allocations_name_check",
+          "value": "trim(\"plan_allocations\".\"name\", char(9, 10, 11, 12, 13, 32)) <> ''"
+        },
+        "plan_allocations_group_check": {
+          "name": "plan_allocations_group_check",
+          "value": "\"plan_allocations\".\"allocation_group\" in ('fixed', 'flexible', 'saving')"
+        },
+        "plan_allocations_amount_check": {
+          "name": "plan_allocations_amount_check",
+          "value": "typeof(\"plan_allocations\".\"amount_hundredths\") = 'integer' and \"plan_allocations\".\"amount_hundredths\" between 1 and 9007199254740991"
+        },
+        "plan_allocations_position_check": {
+          "name": "plan_allocations_position_check",
+          "value": "typeof(\"plan_allocations\".\"position\") = 'integer' and \"plan_allocations\".\"position\" >= 0"
+        }
+      }
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "debt_mode": {
+          "name": "debt_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'remaining_emis'"
+        },
+        "email_verified_at": {
+          "name": "email_verified_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "users_email_unique_idx": {
+          "name": "users_email_unique_idx",
+          "columns": [
+            "email"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}
