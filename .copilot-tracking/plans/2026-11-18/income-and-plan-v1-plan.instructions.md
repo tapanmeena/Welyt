@@ -72,25 +72,31 @@ were also verified in disposable SQLite.
 
 <!-- parallelizable: false -->
 
-- [ ] Add one additive Drizzle migration for `income_receipts` and the shared Zod contracts.
+- [x] Add one additive Drizzle migration for `income_receipts` and the shared Zod contracts.
   Store a generated ID, owner, India-local `receivedDate`, type, source text, currency,
   actual amount received, optional gross, optional TDS, notes, and UTC creation time.
   Reuse `users` and `currencies` foreign keys. Do not add an account or movement link.
-- [ ] Store money as integer hundredths; accept and return decimal strings. The received
+- [x] Store money as integer hundredths; accept and return decimal strings. The received
   amount must be positive, dates cannot be future India dates, and inputs must honor the
   currency's minor units. Gross and TDS describe the same receipt and remain optional;
   TDS cannot be negative.
   When gross is provided, it cannot be below the net receipt; when both are provided, TDS
   cannot exceed the difference. Other deductions may exist, so do not infer missing amounts.
-- [ ] Allow distinct receipts on the same date, even with identical amounts. Correct a
+- [x] Allow distinct receipts on the same date, even with identical amounts. Correct a
   current receipt by retiring it and inserting a linked replacement atomically. Enforce
   same-user replacement references and one successor per version. Archive mistaken
   receipts without deleting history. Only current, non-archived rows count in totals.
   Index owner and received date for fiscal history.
-- [ ] Register verified-user list, create, correct, and archive routes under `/income`.
+- [x] Register verified-user list, create, correct, and archive routes under `/income`.
   Take the owner from the token, not request data. Return not-found for other owners'
   records and conflict for corrections against a superseded or archived receipt.
   Preserve existing auth and Accounts data during migration.
+
+Phase 2 added [0003_income_receipts.sql](../../../apps/api/drizzle/0003_income_receipts.sql)
+and the verified-user receipt API. The list excludes archived and superseded receipts unless
+`includeInactive=true`. All 47 API tests passed, including upgrade preservation, ownership,
+amount validation, correction history, and unchanged snapshots. Type-check, lint, API
+build, and Drizzle validation passed. The local database was not migrated.
 
 ### Phase 3: Deliver INR income history
 

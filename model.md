@@ -13,9 +13,10 @@ The authentication entities below reflect the existing implementation unless mar
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
 and `fx_rates`. The verified-user Accounts API exposes owner-scoped account and snapshot
 operations and INR valuation using stored Frankfurter rates. Mobile Accounts & Cash uses those
-account and snapshot operations, and the Workspace shows the INR cash summary. Other financial
-entities and additional user preferences are not implemented. Entity fields below describe
-logical records, not SQL column definitions.
+account and snapshot operations, and the Workspace shows the INR cash summary. Standalone
+income receipts have a database table and an API. INR income history, monthly planning, other
+financial modules, and additional user preferences are not implemented. Entity fields below
+describe logical records, not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
 Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
@@ -233,10 +234,36 @@ and retain superseded snapshots in history. New balance dates default to today i
 
 ## Income & Plan
 
-### Proposed entities
+### Income receipts
 
-- `Income`: `id`, `userId`, `receivedDate`, `type`, `source`, `currencyId`, `amount`,
-  optional `gross`, optional `tds`, optional `accountMovementId`, `notes`
+The `income_receipts` table stores a receipt ID, owner, India-local `receivedDate`, type,
+source, currency code, actual amount received, optional gross, optional tax deducted at source
+(TDS), notes, and UTC creation time. Type and source are required text. Amounts use integer
+hundredths in storage and decimal strings at the API boundary.
+
+Receipts do not have account or movement links. Correcting a receipt creates a linked
+replacement and retains the original. Archiving retains the receipt without including it
+in the current list. Distinct receipts can share a date and amount.
+
+### Income API
+
+All routes require a bearer access token and a verified email address.
+
+- `GET /income` lists the owner's current receipts in descending receipt-date order. Set
+  `includeInactive=true` to include archived and superseded versions.
+- `POST /income` records an actual receipt. Supply `receivedDate`, `type`, `source`,
+  `currencyCode`, and `amount`. `gross`, `tds`, and `notes` are optional.
+- `POST /income/:receiptId/corrections` accepts the full replacement receipt and preserves the
+  original. Archived or superseded receipts return `409` for corrections.
+- `POST /income/:receiptId/archive` archives the specified current version. Repeating the
+  request for an already archived version returns the same record.
+
+Requests for another user's receipt return `404`. The amount is the net receipt and must be
+positive. It is never inferred from gross or TDS. These routes do not change account snapshots
+or perform INR conversions.
+
+### Proposed planning entities
+
 - `PlanInput`: `id`, `userId`, `kind`, `currencyId`, `amount`, `effectiveFrom`,
   optional `effectiveTo`, optional `loanId`, `notes`
 - `MonthlyPlan`: `id`, `userId`, `month`, `currencyId`, `revision`, `status`

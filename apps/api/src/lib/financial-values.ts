@@ -30,26 +30,31 @@ const ratePattern = /^(\d{1,8})(?:\.(\d+))?$/;
 const maxSafeInteger = BigInt(Number.MAX_SAFE_INTEGER);
 
 export function parseBalanceHundredths(balance: string, minorUnits: number): number {
-  const match = BALANCE_INPUT_PATTERN.exec(balance);
+  return parseAmountHundredths(balance, minorUnits, 'balance');
+}
+
+export function parseAmountHundredths(value: string, minorUnits: number, field: string): number {
+  const label = field === 'balance' ? 'balance' : 'amount';
+  const match = BALANCE_INPUT_PATTERN.exec(value);
   const whole = match?.[2];
   if (!whole) {
     throw fieldValidationError(
-      'balance',
-      'Enter a signed decimal balance with up to two fractional digits',
+      field,
+      `Enter a signed decimal ${label} with up to two fractional digits`,
     );
   }
 
   const fraction = match?.[3] ?? '';
   if (/[1-9]/.test(fraction.slice(minorUnits))) {
     throw fieldValidationError(
-      'balance',
-      'The balance exceeds the precision of the account currency',
+      field,
+      `The ${label} exceeds the precision of the ${field === 'balance' ? 'account currency' : 'currency'}`,
     );
   }
 
   const hundredths = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
   if (hundredths > maxSafeInteger) {
-    throw fieldValidationError('balance', 'The balance exceeds the supported range');
+    throw fieldValidationError(field, `The ${label} exceeds the supported range`);
   }
   return Number(match?.[1] === '-' ? -hundredths : hundredths);
 }

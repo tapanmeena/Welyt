@@ -206,6 +206,79 @@ export const fxRates = sqliteTable(
   ],
 );
 
+export const incomeReceipts = sqliteTable(
+  'income_receipts',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    receivedDate: text('received_date').notNull(),
+    type: text('type').notNull(),
+    source: text('source').notNull(),
+    currencyCode: text('currency_code')
+      .notNull()
+      .references(() => currencies.code, { onDelete: 'restrict' }),
+    amountHundredths: integer('amount_hundredths').notNull(),
+    grossHundredths: integer('gross_hundredths'),
+    tdsHundredths: integer('tds_hundredths'),
+    notes: text('notes'),
+    createdAt: text('created_at').notNull(),
+    retiredAt: text('retired_at'),
+    archivedAt: text('archived_at'),
+    replacesReceiptId: text('replaces_receipt_id'),
+  },
+  (table) => [
+    index('income_receipts_owner_date_idx').on(table.userId, table.receivedDate, table.id),
+    uniqueIndex('income_receipts_owner_id_idx').on(table.userId, table.id),
+    uniqueIndex('income_receipts_replacement_idx').on(table.replacesReceiptId),
+    foreignKey({
+      name: 'income_receipts_same_owner_replacement_fk',
+      columns: [table.userId, table.replacesReceiptId],
+      foreignColumns: [table.userId, table.id],
+    }).onDelete('restrict'),
+    check(
+      'income_receipts_date_check',
+      sql`date(${table.receivedDate}, '+0 days') is ${table.receivedDate}`,
+    ),
+    check(
+      'income_receipts_type_check',
+      sql`trim(${table.type}, char(9, 10, 11, 12, 13, 32)) <> ''`,
+    ),
+    check(
+      'income_receipts_source_check',
+      sql`trim(${table.source}, char(9, 10, 11, 12, 13, 32)) <> ''`,
+    ),
+    check(
+      'income_receipts_amount_check',
+      sql`typeof(${table.amountHundredths}) = 'integer' and ${table.amountHundredths} between 1 and ${maxSafeInteger}`,
+    ),
+    check(
+      'income_receipts_gross_check',
+      sql`${table.grossHundredths} is null or (
+        typeof(${table.grossHundredths}) = 'integer' and
+        ${table.grossHundredths} between ${table.amountHundredths} and ${maxSafeInteger}
+      )`,
+    ),
+    check(
+      'income_receipts_tds_check',
+      sql`${table.tdsHundredths} is null or (
+        typeof(${table.tdsHundredths}) = 'integer' and
+        ${table.tdsHundredths} between 0 and ${maxSafeInteger} and
+        (${table.grossHundredths} is null or ${table.tdsHundredths} <= ${table.grossHundredths} - ${table.amountHundredths})
+      )`,
+    ),
+    check(
+      'income_receipts_inactive_state_check',
+      sql`${table.retiredAt} is null or ${table.archivedAt} is null`,
+    ),
+    check(
+      'income_receipts_no_self_replacement_check',
+      sql`${table.replacesReceiptId} <> ${table.id}`,
+    ),
+  ],
+);
+
 export type UserRecord = typeof users.$inferSelect;
 export type NewUserRecord = typeof users.$inferInsert;
 export type AuthSessionRecord = typeof authSessions.$inferSelect;
@@ -220,3 +293,4 @@ export type AccountObservationRecord = typeof accountObservations.$inferSelect;
 export type NewAccountObservationRecord = typeof accountObservations.$inferInsert;
 export type FxRateRecord = typeof fxRates.$inferSelect;
 export type NewFxRateRecord = typeof fxRates.$inferInsert;
+export type IncomeReceiptRecord = typeof incomeReceipts.$inferSelect;

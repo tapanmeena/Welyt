@@ -14,6 +14,7 @@ import { AuthService } from './modules/auth/auth.service.ts';
 import { FrankfurterProvider, LAUNCH_FX_CURRENCIES } from './modules/fx/frankfurter.provider.ts';
 import { startDailyFxRefresh } from './modules/fx/fx.job.ts';
 import { FxService } from './modules/fx/fx.service.ts';
+import { registerIncomeRoutes } from './modules/income/income.routes.ts';
 import { createAuthGuards } from './plugins/auth-guard.ts';
 
 declare module 'fastify' {
@@ -203,6 +204,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     env,
   });
   await app.register(registerAccountsRoutes, { db: database.db });
+  await app.register(registerIncomeRoutes, { db: database.db });
 
   return app;
 }

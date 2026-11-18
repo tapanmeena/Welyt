@@ -33,10 +33,17 @@ export const ACCOUNTS_ERROR_CODES = {
 } as const;
 
 export type AccountsErrorCode = (typeof ACCOUNTS_ERROR_CODES)[keyof typeof ACCOUNTS_ERROR_CODES];
-export type ApiErrorCode = AuthErrorCode | AccountsErrorCode;
+export const INCOME_ERROR_CODES = {
+  INCOME_RECEIPT_NOT_FOUND: 'INCOME_RECEIPT_NOT_FOUND',
+  INCOME_RECEIPT_NOT_CURRENT: 'INCOME_RECEIPT_NOT_CURRENT',
+  INCOME_RECEIPT_ARCHIVED: 'INCOME_RECEIPT_ARCHIVED',
+} as const;
+
+export type IncomeErrorCode = (typeof INCOME_ERROR_CODES)[keyof typeof INCOME_ERROR_CODES];
+export type ApiErrorCode = AuthErrorCode | AccountsErrorCode | IncomeErrorCode;
 
 export const apiErrorDetailSchema = z.object({
-  code: z.enum({ ...AUTH_ERROR_CODES, ...ACCOUNTS_ERROR_CODES }),
+  code: z.enum({ ...AUTH_ERROR_CODES, ...ACCOUNTS_ERROR_CODES, ...INCOME_ERROR_CODES }),
   message: z.string(),
   fieldErrors: z.record(z.string(), z.array(z.string())).optional(),
 });

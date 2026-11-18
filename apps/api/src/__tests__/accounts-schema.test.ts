@@ -6,7 +6,14 @@ import { it, type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { createDatabase, type AppDatabase, type CreateDatabaseOptions } from '../db/client.ts';
-import { accountObservations, accounts, currencies, fxRates, users } from '../db/schema.ts';
+import {
+  accountObservations,
+  accounts,
+  currencies,
+  fxRates,
+  incomeReceipts,
+  users,
+} from '../db/schema.ts';
 
 const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url));
 const observedOn = '2026-04-01';
@@ -77,29 +84,113 @@ it('migrates a fresh database with the launch currency catalog and keeps INR as 
   assert.equal(addAccount(db, 'everyday').currencyCode, 'INR');
 });
 
-it('upgrades an auth-only database without replacing existing user data', (t) => {
-  const authOnlyFolder = mkdtempSync(join(tmpdir(), 'welyt-auth-only-'));
-  t.after(() => rmSync(authOnlyFolder, { recursive: true, force: true }));
+function copyMigrationPrefix(t: TestContext, count: number): string {
+  const folder = mkdtempSync(join(tmpdir(), 'welyt-migration-prefix-'));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
   const journal: { entries: { tag: string }[] } = JSON.parse(
     readFileSync(join(migrationsFolder, 'meta', '_journal.json'), 'utf8'),
   );
-  const [authMigration] = journal.entries;
-  assert.ok(authMigration);
-  const authFile = `${authMigration.tag}.sql`;
-  copyFileSync(join(migrationsFolder, authFile), join(authOnlyFolder, authFile));
-  mkdirSync(join(authOnlyFolder, 'meta'));
-  writeFileSync(
-    join(authOnlyFolder, 'meta', '_journal.json'),
-    JSON.stringify({ ...journal, entries: [authMigration] }),
-  );
+  const entries = journal.entries.slice(0, count);
+  assert.equal(entries.length, count);
+  for (const { tag } of entries) {
+    const file = `${tag}.sql`;
+    copyFileSync(join(migrationsFolder, file), join(folder, file));
+  }
+  mkdirSync(join(folder, 'meta'));
+  writeFileSync(join(folder, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries }));
+  return folder;
+}
 
-  const { db, sqlite } = openTestDatabase(t, { migrationsFolder: authOnlyFolder });
+it('upgrades an auth-only database without replacing existing user data', (t) => {
+  const { db, sqlite } = openTestDatabase(t, { migrationsFolder: copyMigrationPrefix(t, 1) });
   const existingUser = addUser(db);
   migrate(db, { migrationsFolder });
 
   assert.deepEqual(db.select().from(users).all(), [existingUser]);
   assert.equal(addAccount(db, 'first-financial-account').userId, existingUser.id);
   assert.deepEqual(sqlite.pragma('foreign_key_check'), []);
+});
+
+it('adds income receipts without rewriting existing users, accounts, snapshots, or rates', (t) => {
+  const { db, sqlite } = openTestDatabase(t, { migrationsFolder: copyMigrationPrefix(t, 3) });
+  const owner = addUser(db);
+  const account = addAccount(db, 'kept-account');
+  const snapshot = db
+    .insert(accountObservations)
+    .values({
+      id: 'kept-snapshot',
+      accountId: account.id,
+      observedOn,
+      balanceHundredths: 100,
+      source: 'manual',
+      createdAt,
+    })
+    .returning()
+    .get();
+  const rate = db
+    .insert(fxRates)
+    .values({
+      id: 'kept-rate',
+      baseCurrencyCode: 'USD',
+      quoteCurrencyCode: 'INR',
+      rateOn: observedOn,
+      rateE8: 8_100_000_000,
+      source: 'frankfurter',
+      fetchedAt: createdAt,
+      createdAt,
+    })
+    .returning()
+    .get();
+
+  migrate(db, { migrationsFolder });
+
+  assert.deepEqual(db.select().from(incomeReceipts).all(), []);
+  assert.deepEqual(db.select().from(users).all(), [owner]);
+  assert.deepEqual(db.select().from(accounts).all(), [account]);
+  assert.deepEqual(db.select().from(accountObservations).all(), [snapshot]);
+  assert.deepEqual(db.select().from(fxRates).all(), [rate]);
+  assert.deepEqual(sqlite.pragma('foreign_key_check'), []);
+});
+
+it('enforces exact positive amounts and rejects cross-owner or branching receipt corrections in SQLite', (t) => {
+  const { db, sqlite } = openTestDatabase(t);
+  addUser(db);
+  addUser(db, 'second-owner');
+  const record = sqlite.prepare(
+    `INSERT INTO income_receipts
+      (id, user_id, received_date, type, source, currency_code, amount_hundredths,
+       gross_hundredths, tds_hundredths, created_at, replaces_receipt_id)
+     VALUES (@id, @userId, @receivedDate, 'Salary', 'Fixture', 'INR', @amount, @gross, @tds,
+             @createdAt, @replacesReceiptId)`,
+  );
+  const original = {
+    id: 'original',
+    userId: 'owner',
+    receivedDate: observedOn,
+    amount: 10_000,
+    gross: 12_000,
+    tds: 1_000,
+    createdAt,
+    replacesReceiptId: null,
+  };
+  record.run(original);
+  for (const invalid of [{ amount: 0 }, { amount: 1.5 }, { gross: 9_999 }, { tds: 2_001 }]) {
+    assert.throws(() => record.run({ ...original, ...invalid, id: 'invalid' }), {
+      code: 'SQLITE_CONSTRAINT_CHECK',
+    });
+  }
+  const revised = { ...original, id: 'replacement', replacesReceiptId: original.id };
+  assert.throws(() => record.run({ ...revised, userId: 'second-owner' }), {
+    code: 'SQLITE_CONSTRAINT_FOREIGNKEY',
+  });
+  sqlite
+    .prepare('UPDATE income_receipts SET retired_at = ? WHERE id = ?')
+    .run(createdAt, original.id);
+  record.run(revised);
+  assert.throws(() => record.run({ ...revised, id: 'second-replacement' }), {
+    code: 'SQLITE_CONSTRAINT_UNIQUE',
+  });
+  assert.equal(db.select().from(incomeReceipts).all().length, 2);
 });
 
 it('enforces one current balance per date and retains a same-account correction', (t) => {

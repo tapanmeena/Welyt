@@ -28,7 +28,7 @@ export function indiaBusinessDate(instant: Date): string {
 }
 
 const accountKindSchema = z.enum(ACCOUNT_KINDS);
-const moneyStringSchema = z.string().regex(/^-?(?:0|[1-9]\d*)\.\d{2}$/);
+export const moneyStringSchema = z.string().regex(/^-?(?:0|[1-9]\d*)\.\d{2}$/);
 const accountMetadataSchema = z.strictObject({
   name: z.string().trim().min(1, 'Account name is required'),
   kind: accountKindSchema,
