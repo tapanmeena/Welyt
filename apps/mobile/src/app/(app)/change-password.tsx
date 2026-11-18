@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
 import { FormTextField, type FormTextInputHandle } from '@/components/auth/FormTextField';
@@ -14,9 +15,9 @@ import { colors } from '@/theme/colors';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
+  const showSuccess = useSuccessSnackbar();
   const changePasswordMutation = useChangePasswordMutation();
   const [bannerError, setBannerError] = useState<string | null>(null);
-  const [bannerSuccess, setBannerSuccess] = useState<string | null>(null);
   const newPasswordInputRef = useRef<FormTextInputHandle>(null);
 
   const {
@@ -35,11 +36,10 @@ export default function ChangePasswordScreen() {
 
   const onSubmit = handleSubmit(async (values) => {
     setBannerError(null);
-    setBannerSuccess(null);
     try {
       const result = await changePasswordMutation.mutateAsync(values);
       reset();
-      setBannerSuccess(result.message);
+      showSuccess(result.message);
     } catch (error) {
       const topError = resolveFormError(error, setError, ['currentPassword', 'newPassword']);
       setBannerError(topError || null);
@@ -73,7 +73,6 @@ export default function ChangePasswordScreen() {
         </Pressable>
       }
     >
-      <StatusBanner tone="success" message={bannerSuccess} />
       <StatusBanner tone="error" message={bannerError} />
 
       <Controller

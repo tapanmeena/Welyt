@@ -15,6 +15,7 @@ import {
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { CashSummary } from '@/features/accounts/CashSummary';
@@ -42,25 +43,21 @@ const DEBT_OPTIONS: readonly {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const showSuccess = useSuccessSnackbar();
   const user = useAuthStore((state) => state.user);
   const applyVerifiedUser = useAuthStore((state) => state.applyVerifiedUser);
   const logoutMutation = useLogoutMutation();
   const logoutAllMutation = useLogoutAllMutation();
-  const [feedback, setFeedback] = useState<{ tone: 'error' | 'success'; text: string } | null>(
-    null,
-  );
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const updateDebtModeMutation = useMutation({
     mutationFn: (debtMode: DebtMode) => authApi.updateProfile({ debtMode }),
     onSuccess: async ({ user: updatedUser }) => {
       await applyVerifiedUser(updatedUser);
-      setFeedback({ tone: 'success', text: 'Financial valuation preference saved.' });
+      showSuccess('Financial valuation preference saved.');
     },
     onError: (error) => {
-      setFeedback({
-        tone: 'error',
-        text: error instanceof Error ? error.message : 'Could not update preference.',
-      });
+      setFeedback(error instanceof Error ? error.message : 'Could not update preference.');
     },
   });
 
@@ -109,7 +106,7 @@ export default function HomeScreen() {
 
           <CashSummary userId={user.id} />
 
-          {feedback ? <StatusBanner tone={feedback.tone} message={feedback.text} /> : null}
+          <StatusBanner tone="error" message={feedback} />
 
           <View style={styles.callout}>
             <Text style={styles.calloutTitle}>Make this workspace yours.</Text>
@@ -241,11 +238,9 @@ export default function HomeScreen() {
                   setFeedback(null);
                   logoutAllMutation.mutate(undefined, {
                     onError: (err) => {
-                      setFeedback({
-                        tone: 'error',
-                        text:
-                          err instanceof Error ? err.message : 'Unable to revoke active sessions.',
-                      });
+                      setFeedback(
+                        err instanceof Error ? err.message : 'Unable to revoke active sessions.',
+                      );
                     },
                   });
                 }}

@@ -335,6 +335,8 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
       await device.enter('Allocation 1 amount (INR)', '110000');
       await device.tap('Save plan', { scroll: true });
       await device.expect('Plan saved.', /Shortfall: INR 10,000\.00/);
+      await device.expectHidden('Plan saved.', 8_000);
+      await device.expect(/Shortfall: INR 10,000\.00/);
       await device.tap('Next month');
       await device.expect('No plan saved for this month.');
       await device.tap('Create plan');

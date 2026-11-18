@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { FinanceScreen, financeStyles as styles } from '@/components/FinanceScreen';
+import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { displayBalance } from '@/features/accounts/format-balance';
@@ -109,10 +110,10 @@ function ReceiptRow({
 
 function IncomeList({ userId }: { userId: string }) {
   const router = useRouter();
+  const showSuccess = useSuccessSnackbar();
   const currentYear = fiscalYearStart(indiaBusinessDate(new Date()));
   const [year, setYear] = useState(currentYear);
   const [edit, setEdit] = useState<{ original: IncomeReceiptDto | null } | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const history = useQuery(incomeHistoryQuery(userId, year));
 
   if (edit) {
@@ -130,7 +131,7 @@ function IncomeList({ userId }: { userId: string }) {
           onCancel={() => setEdit(null)}
           onSaved={(saved) => {
             setYear(fiscalYearStart(saved.receivedDate));
-            setNotice(edit.original ? 'Receipt corrected.' : 'Receipt recorded.');
+            showSuccess(edit.original ? 'Receipt corrected.' : 'Receipt recorded.');
             setEdit(null);
           }}
         />
@@ -139,7 +140,6 @@ function IncomeList({ userId }: { userId: string }) {
   }
 
   function navigateYear(offset: number) {
-    setNotice(null);
     setYear(String(Number(year) + offset).padStart(4, '0'));
   }
 
@@ -151,19 +151,12 @@ function IncomeList({ userId }: { userId: string }) {
       backLabel="Workspace"
       onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
     >
-      <StatusBanner tone="success" message={notice} />
       <AuthButton
         label="Monthly Plan"
         variant="secondary"
         onPress={() => router.push('/monthly-plan')}
       />
-      <AuthButton
-        label="Record income"
-        onPress={() => {
-          setNotice(null);
-          setEdit({ original: null });
-        }}
-      />
+      <AuthButton label="Record income" onPress={() => setEdit({ original: null })} />
       <View style={styles.card}>
         <Text accessibilityRole="header" style={styles.heading}>
           {yearLabel(year)}
@@ -235,10 +228,7 @@ function IncomeList({ userId }: { userId: string }) {
               <ReceiptRow
                 key={receipt.id}
                 receipt={receipt}
-                onCorrect={() => {
-                  setNotice(null);
-                  setEdit({ original: receipt });
-                }}
+                onCorrect={() => setEdit({ original: receipt })}
               />
             ))}
           </View>

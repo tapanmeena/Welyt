@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, Wallet } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { AccountForm } from '@/features/accounts/AccountForm';
@@ -56,9 +57,9 @@ function AccountGroup({
 
 function AccountsList({ userId }: { userId: string }) {
   const router = useRouter();
+  const showSuccess = useSuccessSnackbar();
   const accounts = useQuery(accountsQueries.list(userId));
   const [adding, setAdding] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   if (adding) {
     return (
@@ -72,7 +73,7 @@ function AccountsList({ userId }: { userId: string }) {
         <AccountForm
           userId={userId}
           onSaved={() => {
-            setNotice('Account created. Open it to record your first balance.');
+            showSuccess('Account created. Open it to record your first balance.');
             setAdding(false);
           }}
           onCancel={() => setAdding(false)}
@@ -93,14 +94,7 @@ function AccountsList({ userId }: { userId: string }) {
       backLabel="Workspace"
       onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
     >
-      <StatusBanner tone="success" message={notice} />
-      <AuthButton
-        label="Add account"
-        onPress={() => {
-          setNotice(null);
-          setAdding(true);
-        }}
-      />
+      <AuthButton label="Add account" onPress={() => setAdding(true)} />
       {accounts.isError ? (
         <View style={styles.section}>
           <StatusBanner

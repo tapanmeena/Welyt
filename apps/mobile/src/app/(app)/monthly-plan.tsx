@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { FinanceScreen, financeStyles as styles } from '@/components/FinanceScreen';
+import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { displayBalance } from '@/features/accounts/format-balance';
@@ -76,10 +77,10 @@ function AutoCopyControls({ userId }: { userId: string }) {
 
 function MonthlyPlanView({ userId }: { userId: string }) {
   const router = useRouter();
+  const showSuccess = useSuccessSnackbar();
   const [month, setMonth] = useState(() => indiaBusinessDate(new Date()).slice(0, 7));
   const [revision, setRevision] = useState<number>();
   const [editor, setEditor] = useState<{ initial: MonthlyPlanDto | null } | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const history = useQuery(monthlyPlanQuery(userId, month, revision));
   const previousMonth = shiftPlanMonth(month, -1);
   const nextMonth = shiftPlanMonth(month, 1);
@@ -103,7 +104,7 @@ function MonthlyPlanView({ userId }: { userId: string }) {
           onSaved={() => {
             setEditor(null);
             setRevision(undefined);
-            setNotice('Plan saved.');
+            showSuccess('Plan saved.');
           }}
         />
       </FinanceScreen>
@@ -112,7 +113,6 @@ function MonthlyPlanView({ userId }: { userId: string }) {
 
   function navigateMonth(value: string | null) {
     if (value === null) return;
-    setNotice(null);
     setRevision(undefined);
     setMonth(value);
   }
@@ -124,7 +124,6 @@ function MonthlyPlanView({ userId }: { userId: string }) {
       backLabel="Income History"
       onBack={() => (router.canGoBack() ? router.back() : router.replace('/income'))}
     >
-      <StatusBanner tone="success" message={notice} />
       <View style={styles.card}>
         <Text accessibilityRole="header" style={styles.heading}>
           {heading}
@@ -201,10 +200,7 @@ function MonthlyPlanView({ userId }: { userId: string }) {
             <AuthButton
               label="Previous revision"
               variant="secondary"
-              onPress={() => {
-                setNotice(null);
-                setRevision(plan.revision - 1);
-              }}
+              onPress={() => setRevision(plan.revision - 1)}
             />
           ) : null}
           {revision === undefined ? (

@@ -3,6 +3,7 @@ import { accountParamsSchema, type BalanceSnapshotDto } from '@welyt/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSuccessSnackbar } from '@/components/SuccessSnackbar';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { AccountForm } from '@/features/accounts/AccountForm';
@@ -66,11 +67,11 @@ function AccountDetail({
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
+  const showSuccess = useSuccessSnackbar();
   const list = useQuery(accountsQueries.list(userId));
   const account = list.data?.find((item) => item.id === accountId);
   const history = useQuery({ ...accountsQueries.snapshots(userId, accountId), enabled: !!account });
   const [panel, setPanel] = useState<Panel | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const archive = useMutation({
     mutationFn: () => accountsApi.archiveAccount(accountId),
     onSuccess: (saved) => {
@@ -81,17 +82,13 @@ function AccountDetail({
       void queryClient.invalidateQueries({ queryKey });
       void queryClient.invalidateQueries({ queryKey: accountsQueries.valuation(userId).queryKey });
       setPanel(null);
-      setNotice('Account archived. You can still read its balance history.');
+      showSuccess('Account archived. You can still read its balance history.');
     },
   });
 
-  function openPanel(next: Panel) {
-    setNotice(null);
-    setPanel(next);
-  }
   const closePanel = () => setPanel(null);
   function finish(message: string) {
-    setNotice(message);
+    showSuccess(message);
     closePanel();
   }
 
@@ -156,7 +153,6 @@ function AccountDetail({
       backLabel="Accounts"
       onBack={onBack}
     >
-      <StatusBanner tone="success" message={notice} />
       {list.isError ? (
         <View style={styles.section}>
           <StatusBanner
@@ -203,11 +199,11 @@ function AccountDetail({
             />
           ) : (
             <View style={styles.section}>
-              <AuthButton label="Record balance" onPress={() => openPanel({ type: 'record' })} />
+              <AuthButton label="Record balance" onPress={() => setPanel({ type: 'record' })} />
               <AuthButton
                 variant="secondary"
                 label="Edit account"
-                onPress={() => openPanel({ type: 'edit' })}
+                onPress={() => setPanel({ type: 'edit' })}
               />
             </View>
           )}
@@ -254,7 +250,7 @@ function AccountDetail({
                 snapshot={snapshot}
                 onCorrect={
                   !account.archivedAt && !snapshot.retiredAt
-                    ? () => openPanel({ type: 'correct', snapshot })
+                    ? () => setPanel({ type: 'correct', snapshot })
                     : null
                 }
               />
@@ -290,7 +286,7 @@ function AccountDetail({
                 label="Archive account"
                 onPress={() => {
                   archive.reset();
-                  openPanel({ type: 'archive' });
+                  setPanel({ type: 'archive' });
                 }}
               />
             )

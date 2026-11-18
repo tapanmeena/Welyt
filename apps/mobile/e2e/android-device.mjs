@@ -148,6 +148,16 @@ class AndroidDevice {
     );
   }
 
+  async expectHidden(label, timeout = MATCH_TIMEOUT) {
+    const deadline = Date.now() + timeout;
+    do {
+      const nodes = await this.nodes();
+      if (nodes.length > 0 && !nodes.some((node) => matches(node, label))) return;
+      await delay(350);
+    } while (Date.now() < deadline);
+    assert.fail(`Did not disappear from Welyt: ${label}.`);
+  }
+
   async tap(label, { scroll = false, editor = false } = {}) {
     const deadline = Date.now() + MATCH_TIMEOUT;
     let remainingScrolls = scroll ? 3 : 0;
