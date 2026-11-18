@@ -1,3 +1,4 @@
+import type { AccountValuationDto, AccountsValuationDto } from '@welyt/shared';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { AppDatabase } from '../../db/client.ts';
 import { accountObservations, accounts } from '../../db/schema.ts';
@@ -16,39 +17,8 @@ import {
 } from '../fx/fx.service.ts';
 import { currentObservationsAsOf } from './accounts.service.ts';
 
-type AccountValuationIssue =
-  | { reason: 'missing_snapshot' }
-  | { reason: 'missing_fx_rate' }
-  | { reason: 'stale_fx_rate'; rateOn: string; ageDays: number };
-
-interface ValuationFxRate {
-  id: string;
-  rateOn: string;
-  rate: string;
-  source: string;
-  fetchedAt: string | null;
-  ageDays: number;
-}
-
-export interface AccountValuation {
-  accountId: string;
-  name: string;
-  currencyCode: string;
-  snapshot: { id: string; observedOn: string; balance: string } | null;
-  inrBalance: string | null;
-  fxRate: ValuationFxRate | null;
-  issue: AccountValuationIssue | null;
-}
-
-export interface AccountsValuation {
-  asOf: string;
-  fiscalYear: ReturnType<typeof indiaFiscalWindow>;
-  reportingCurrencyCode: 'INR';
-  accounts: AccountValuation[];
-  complete: boolean;
-  knownSubtotalInr: string;
-  totalInr: string | null;
-}
+export type AccountValuation = AccountValuationDto;
+export type AccountsValuation = AccountsValuationDto;
 
 function convertToInrPaise(hundredths: bigint, rateE8: number): bigint {
   const scaled = hundredths * BigInt(rateE8);
@@ -120,7 +90,7 @@ export class AccountsValuationService {
           balance: formatHundredths(observation.balanceHundredths),
         };
         let paise = BigInt(observation.balanceHundredths);
-        let fxRate: ValuationFxRate | null = null;
+        let fxRate: AccountValuation['fxRate'] = null;
         if (account.currencyCode !== 'INR' && paise !== 0n) {
           let lookup = ratesByCurrency.get(account.currencyCode);
           if (!lookup) {

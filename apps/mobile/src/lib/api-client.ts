@@ -1,7 +1,7 @@
 import {
   AUTH_ERROR_CODES,
   apiErrorResponseSchema,
-  type AuthErrorCode,
+  type ApiErrorCode,
   type AuthTokensDto,
 } from '@welyt/shared';
 import Constants from 'expo-constants';
@@ -62,13 +62,13 @@ export function getApiBaseUrl(): string {
 
 export class ApiRequestError extends Error {
   readonly statusCode: number;
-  readonly code: AuthErrorCode;
+  readonly code: ApiErrorCode;
   readonly fieldErrors: Record<string, string[]> | undefined;
   readonly isNetworkError: boolean;
 
   constructor(options: {
     statusCode: number;
-    code: AuthErrorCode;
+    code: ApiErrorCode;
     message: string;
     fieldErrors?: Record<string, string[]> | undefined;
     isNetworkError?: boolean | undefined;

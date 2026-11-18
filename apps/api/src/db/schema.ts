@@ -1,4 +1,4 @@
-import { DEBT_MODES } from '@welyt/shared';
+import { ACCOUNT_KINDS, DEBT_MODES } from '@welyt/shared';
 import { inArray, sql } from 'drizzle-orm';
 import {
   check,
@@ -13,7 +13,6 @@ import {
 export const AUTH_CHALLENGE_PURPOSES = ['email_verification', 'password_reset'] as const;
 export type AuthChallengePurpose = (typeof AUTH_CHALLENGE_PURPOSES)[number];
 
-export const ACCOUNT_KINDS = ['bank', 'cash', 'ewallet', 'brokerage_cash'] as const;
 const maxSafeInteger = sql.raw(String(Number.MAX_SAFE_INTEGER));
 
 export const users = sqliteTable(

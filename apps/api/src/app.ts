@@ -8,6 +8,7 @@ import { loadApiEnv, type ApiEnv } from './config/env.ts';
 import { createDatabase, type DatabaseConnection } from './db/client.ts';
 import { AppError, zodToValidationError } from './lib/errors.ts';
 import { createMailer, type Mailer } from './lib/mailer.ts';
+import { registerAccountsRoutes } from './modules/accounts/accounts.routes.ts';
 import { registerAuthRoutes } from './modules/auth/auth.routes.ts';
 import { AuthService } from './modules/auth/auth.service.ts';
 import { FrankfurterProvider, LAUNCH_FX_CURRENCIES } from './modules/fx/frankfurter.provider.ts';
@@ -201,6 +202,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     db: database.db,
     env,
   });
+  await app.register(registerAccountsRoutes, { db: database.db });
 
   return app;
 }

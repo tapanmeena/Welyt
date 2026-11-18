@@ -1,14 +1,14 @@
-import { AUTH_ERROR_CODES, type ApiErrorResponseDto, type AuthErrorCode } from '@welyt/shared';
+import { AUTH_ERROR_CODES, type ApiErrorCode, type ApiErrorResponseDto } from '@welyt/shared';
 import type { z } from 'zod';
 
 export class AppError extends Error {
   readonly statusCode: number;
-  readonly code: AuthErrorCode;
+  readonly code: ApiErrorCode;
   readonly fieldErrors: Record<string, string[]> | undefined;
 
   constructor(
     statusCode: number,
-    code: AuthErrorCode,
+    code: ApiErrorCode,
     message: string,
     fieldErrors?: Record<string, string[]>,
   ) {

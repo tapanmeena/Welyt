@@ -1,70 +1,50 @@
 import { randomUUID } from 'node:crypto';
+import {
+  ACCOUNTS_ERROR_CODES,
+  balanceObservationSchema,
+  createAccountSchema,
+  updateAccountSchema,
+  type AccountsErrorCode,
+  type BalanceSnapshotDto,
+  type CurrencyDto,
+} from '@welyt/shared';
 import { and, desc, eq, isNull, lte } from 'drizzle-orm';
-import { z } from 'zod';
 import type { AppDatabase } from '../../db/client.ts';
 import {
-  ACCOUNT_KINDS,
   accountObservations,
   accounts,
   currencies,
   type AccountObservationRecord,
   type AccountRecord,
 } from '../../db/schema.ts';
-import { fieldValidationError, parseInput } from '../../lib/errors.ts';
+import { AppError, fieldValidationError, parseInput } from '../../lib/errors.ts';
 import {
   assertNotFuture,
-  currencyCodeSchema,
-  financialDateSchema,
   formatHundredths,
   indiaBusinessDate,
   parseBalanceHundredths,
   resolveAsOfDate,
 } from '../../lib/financial-values.ts';
 
-const accountMetadataSchema = z.strictObject({
-  name: z.string().trim().min(1, 'Account name is required'),
-  kind: z.enum(ACCOUNT_KINDS),
-  inNetWorth: z.boolean().optional(),
-  purpose: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
-});
-const createAccountSchema = accountMetadataSchema.extend({
-  currencyCode: currencyCodeSchema.default('INR'),
-});
-const updateAccountSchema = accountMetadataSchema
-  .partial()
-  .refine((fields) => Object.values(fields).some((value) => value !== undefined), {
-    message: 'Provide at least one account field to update',
-  });
-const balanceObservationSchema = z.strictObject({
-  observedOn: financialDateSchema,
-  balance: z.string(),
-  notes: z.string().nullable().optional(),
-});
+export type {
+  CreateAccountInput,
+  UpdateAccountInput,
+  BalanceObservationInput,
+} from '@welyt/shared';
+export type BalanceObservation = BalanceSnapshotDto;
 
-export type CreateAccountInput = z.input<typeof createAccountSchema>;
-export type UpdateAccountInput = z.input<typeof updateAccountSchema>;
-export type BalanceObservationInput = z.input<typeof balanceObservationSchema>;
-
-export type BalanceObservation = Omit<AccountObservationRecord, 'balanceHundredths'> & {
-  balance: string;
-  currencyCode: string;
+const accountErrorStatus: Record<AccountsErrorCode, 404 | 409> = {
+  ACCOUNT_NOT_FOUND: 404,
+  ACCOUNT_ARCHIVED: 409,
+  OBSERVATION_NOT_FOUND: 404,
+  OBSERVATION_NOT_CURRENT: 409,
+  OBSERVATION_DATE_OCCUPIED: 409,
 };
 
-type AccountsErrorCode =
-  | 'ACCOUNT_NOT_FOUND'
-  | 'ACCOUNT_ARCHIVED'
-  | 'OBSERVATION_NOT_FOUND'
-  | 'OBSERVATION_NOT_CURRENT'
-  | 'OBSERVATION_DATE_OCCUPIED';
-
-export class AccountsError extends Error {
-  readonly code: AccountsErrorCode;
-
+export class AccountsError extends AppError {
   constructor(code: AccountsErrorCode, message: string) {
-    super(message);
+    super(accountErrorStatus[code], code, message);
     this.name = 'AccountsError';
-    this.code = code;
   }
 }
 
@@ -85,14 +65,17 @@ export function currentObservationsAsOf(accountId: string | typeof accounts.id, 
 function requireAccount(db: AccountsDb, userId: string, accountId: string): AccountRecord {
   const account = db.select().from(accounts).where(ownedAccount(userId, accountId)).get();
   if (!account) {
-    throw new AccountsError('ACCOUNT_NOT_FOUND', 'Account not found');
+    throw new AccountsError(ACCOUNTS_ERROR_CODES.ACCOUNT_NOT_FOUND, 'Account not found');
   }
   return account;
 }
 
 function assertActive(account: AccountRecord): void {
   if (account.archivedAt !== null) {
-    throw new AccountsError('ACCOUNT_ARCHIVED', 'Archived accounts are read-only');
+    throw new AccountsError(
+      ACCOUNTS_ERROR_CODES.ACCOUNT_ARCHIVED,
+      'Archived accounts are read-only',
+    );
   }
 }
 
@@ -129,10 +112,13 @@ function retireObservation(db: AccountsDb, accountId: string, id: string, retire
     .where(target)
     .get();
   if (!existing) {
-    throw new AccountsError('OBSERVATION_NOT_FOUND', 'Balance observation not found');
+    throw new AccountsError(
+      ACCOUNTS_ERROR_CODES.OBSERVATION_NOT_FOUND,
+      'Balance observation not found',
+    );
   }
   throw new AccountsError(
-    'OBSERVATION_NOT_CURRENT',
+    ACCOUNTS_ERROR_CODES.OBSERVATION_NOT_CURRENT,
     'Balance observation has already been corrected',
   );
 }
@@ -146,7 +132,19 @@ export class AccountsService {
     this.now = now;
   }
 
-  createAccount(userId: string, input: CreateAccountInput): AccountRecord {
+  listCurrencies(): CurrencyDto[] {
+    return this.db
+      .select({
+        code: currencies.code,
+        name: currencies.name,
+        minorUnits: currencies.minorUnits,
+      })
+      .from(currencies)
+      .orderBy(currencies.code)
+      .all();
+  }
+
+  createAccount(userId: string, input: unknown): AccountRecord {
     const values = parseInput(createAccountSchema, input);
     currencyMinorUnits(this.db, values.currencyCode);
     const timestamp = this.now().toISOString();
@@ -157,7 +155,7 @@ export class AccountsService {
       .get();
   }
 
-  updateAccount(userId: string, accountId: string, input: UpdateAccountInput): AccountRecord {
+  updateAccount(userId: string, accountId: string, input: unknown): AccountRecord {
     return this.db.transaction(
       (tx) => {
         assertActive(requireAccount(tx, userId, accountId));
@@ -206,11 +204,7 @@ export class AccountsService {
     );
   }
 
-  recordObservation(
-    userId: string,
-    accountId: string,
-    input: BalanceObservationInput,
-  ): BalanceObservation {
+  recordObservation(userId: string, accountId: string, input: unknown): BalanceObservation {
     return this.writeObservation(userId, accountId, input);
   }
 
@@ -218,7 +212,7 @@ export class AccountsService {
     userId: string,
     accountId: string,
     observationId: string,
-    input: BalanceObservationInput,
+    input: unknown,
   ): BalanceObservation {
     if (typeof observationId !== 'string' || observationId.length === 0) {
       throw fieldValidationError('observationId', 'Choose a balance observation to correct');
@@ -266,7 +260,7 @@ export class AccountsService {
   private writeObservation(
     userId: string,
     accountId: string,
-    input: BalanceObservationInput,
+    input: unknown,
     replacesObservationId?: string,
   ): BalanceObservation {
     return this.db.transaction(
@@ -298,7 +292,7 @@ export class AccountsService {
           .get();
         if (occupied) {
           throw new AccountsError(
-            'OBSERVATION_DATE_OCCUPIED',
+            ACCOUNTS_ERROR_CODES.OBSERVATION_DATE_OCCUPIED,
             'A balance already exists for that date',
           );
         }

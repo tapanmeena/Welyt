@@ -1,10 +1,7 @@
-import { z } from 'zod';
+import { BALANCE_INPUT_PATTERN, financialDateSchema } from '@welyt/shared';
 import { fieldValidationError, parseInput } from './errors.ts';
 
-export const financialDateSchema = z.iso.date();
-export const currencyCodeSchema = z
-  .string()
-  .regex(/^[A-Z]{3}$/, 'Use a three-letter currency code');
+export { currencyCodeSchema, financialDateSchema } from '@welyt/shared';
 export const FX_RATE_SCALE = 100_000_000n;
 
 const indiaDateFormatter = new Intl.DateTimeFormat('en', {
@@ -49,12 +46,11 @@ export function indiaFiscalWindow(asOf: string): { startsOn: string; endsBefore:
   return { startsOn, endsBefore: date.toISOString().replace(/T.*$/, '') };
 }
 
-const balancePattern = /^(-?)(0|[1-9]\d{0,13})(?:\.(\d{1,2}))?$/;
 const ratePattern = /^(\d{1,8})(?:\.(\d+))?$/;
 const maxSafeInteger = BigInt(Number.MAX_SAFE_INTEGER);
 
 export function parseBalanceHundredths(balance: string, minorUnits: number): number {
-  const match = balancePattern.exec(balance);
+  const match = BALANCE_INPUT_PATTERN.exec(balance);
   const whole = match?.[2];
   if (!whole) {
     throw fieldValidationError(

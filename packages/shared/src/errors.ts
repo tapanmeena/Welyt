@@ -24,8 +24,19 @@ export const authErrorCodeValues = Object.values(AUTH_ERROR_CODES) as [
   ...AuthErrorCode[],
 ];
 
+export const ACCOUNTS_ERROR_CODES = {
+  ACCOUNT_NOT_FOUND: 'ACCOUNT_NOT_FOUND',
+  ACCOUNT_ARCHIVED: 'ACCOUNT_ARCHIVED',
+  OBSERVATION_NOT_FOUND: 'OBSERVATION_NOT_FOUND',
+  OBSERVATION_NOT_CURRENT: 'OBSERVATION_NOT_CURRENT',
+  OBSERVATION_DATE_OCCUPIED: 'OBSERVATION_DATE_OCCUPIED',
+} as const;
+
+export type AccountsErrorCode = (typeof ACCOUNTS_ERROR_CODES)[keyof typeof ACCOUNTS_ERROR_CODES];
+export type ApiErrorCode = AuthErrorCode | AccountsErrorCode;
+
 export const apiErrorDetailSchema = z.object({
-  code: z.enum(authErrorCodeValues),
+  code: z.enum({ ...AUTH_ERROR_CODES, ...ACCOUNTS_ERROR_CODES }),
   message: z.string(),
   fieldErrors: z.record(z.string(), z.array(z.string())).optional(),
 });

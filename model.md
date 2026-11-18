@@ -11,8 +11,8 @@ A universal accounting ledger is not required.
 
 The authentication entities below reflect the existing implementation unless marked proposed.
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
-and `fx_rates`. The backend supports owner-scoped account and snapshot operations, daily
-Frankfurter FX ingestion and lookup, and INR account valuation. Financial API routes, other
+and `fx_rates`. The verified-user Accounts API exposes owner-scoped account and snapshot
+operations and INR valuation using stored Frankfurter rates. Mobile Accounts screens, other
 financial entities, and additional user preferences are not implemented. Entity fields below
 describe logical records, not SQL column definitions.
 
@@ -195,6 +195,31 @@ The old `AccountBalanceHistory` becomes dated observations and reconciliation ch
 The old `WalletActivity` becomes account movements. Goal targets move out of Account.
 Movement balance baselines, reconciliation cutoffs, and tracking-mode transitions are deferred
 with movement tracking.
+
+### Accounts API
+
+Every route requires the bearer access token of a user with a verified email address.
+
+| Method | Route                                                    | Operation                                                                     |
+| ------ | -------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| GET    | `/currencies`                                            | List supported account currencies.                                            |
+| GET    | `/accounts`                                              | List owned accounts. Use `includeArchived=true` to include archived accounts. |
+| POST   | `/accounts`                                              | Create an account with an optional currency code.                             |
+| PATCH  | `/accounts/:accountId`                                   | Update account metadata without changing currency.                            |
+| POST   | `/accounts/:accountId/archive`                           | Archive an account without removing its snapshots.                            |
+| GET    | `/accounts/:accountId/snapshots`                         | Return snapshot history, including retired rows.                              |
+| GET    | `/accounts/:accountId/snapshots/latest`                  | Return `{ snapshot }` as of an optional date.                                 |
+| POST   | `/accounts/:accountId/snapshots`                         | Record a balance for an India-local date.                                     |
+| POST   | `/accounts/:accountId/snapshots/:snapshotId/corrections` | Replace a current snapshot and retain the original.                           |
+| GET    | `/accounts/valuation`                                    | Value included accounts in INR as of an optional date.                        |
+
+Use `asOf=YYYY-MM-DD` for historical reads. A snapshot write takes `observedOn` and a decimal
+string such as `"123.45"` for `balance`. A missing latest snapshot returns `{ "snapshot": null }`.
+An incomplete valuation returns `totalInr: null`, a known subtotal, and the reason each
+unavailable account could not be valued.
+
+Records owned by another user return `404`, the same as missing records. Duplicate dates,
+already corrected snapshots, and writes to archived accounts return `409`.
 
 ## Income & Plan
 
