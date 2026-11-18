@@ -9,6 +9,7 @@ import {
   LogOut,
   Scale,
   ShieldAlert,
+  Wallet,
 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -112,6 +113,31 @@ export default function HomeScreen() {
               Your session is encrypted on this device and synchronized with your Welyt account
               conventions.
             </Text>
+          </View>
+
+          <View style={styles.settingsGroup}>
+            <Text style={styles.groupHeading}>Financial modules</Text>
+            <View style={styles.settingsList}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Accounts & Cash"
+                onPress={() => router.push('/accounts')}
+                style={({ pressed }) => [
+                  styles.settingsRow,
+                  styles.settingsRowLast,
+                  pressed && styles.rowPressed,
+                ]}
+              >
+                <View style={[styles.tile, styles.tileNavy]}>
+                  <Wallet size={18} color={colors.tileNavyFg} strokeWidth={1.7} />
+                </View>
+                <View style={styles.rowMain}>
+                  <Text style={styles.rowTitle}>Accounts & Cash</Text>
+                  <Text style={styles.rowSubtitle}>Manage accounts and record dated balances.</Text>
+                </View>
+                <ChevronRight size={16} color={colors.muted} strokeWidth={1.8} />
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.settingsGroup}>

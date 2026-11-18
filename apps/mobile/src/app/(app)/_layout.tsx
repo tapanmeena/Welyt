@@ -11,6 +11,8 @@ export default function ProtectedAppLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="change-password" />
+      <Stack.Screen name="accounts/index" />
+      <Stack.Screen name="accounts/[accountId]" />
     </Stack>
   );
 }

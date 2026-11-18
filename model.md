@@ -12,9 +12,10 @@ A universal accounting ledger is not required.
 The authentication entities below reflect the existing implementation unless marked proposed.
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
 and `fx_rates`. The verified-user Accounts API exposes owner-scoped account and snapshot
-operations and INR valuation using stored Frankfurter rates. Mobile Accounts screens, other
-financial entities, and additional user preferences are not implemented. Entity fields below
-describe logical records, not SQL column definitions.
+operations and INR valuation using stored Frankfurter rates. Mobile Accounts & Cash uses those
+account and snapshot operations. The Home cash summary, other financial entities, and
+additional user preferences are not implemented. Entity fields below describe logical records,
+not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
 Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
@@ -220,6 +221,13 @@ unavailable account could not be valued.
 
 Records owned by another user return `404`, the same as missing records. Duplicate dates,
 already corrected snapshots, and writes to archived accounts return `409`.
+
+### Mobile Accounts & Cash
+
+Open Accounts & Cash from the verified workspace. The account list separates active and
+archived accounts. Account details show the latest recorded balance in its original currency
+and retain superseded snapshots in history. New balance dates default to today in
+`Asia/Kolkata`. An account without a snapshot shows no recorded balance, not zero.
 
 ## Income & Plan
 

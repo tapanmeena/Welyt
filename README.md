@@ -8,8 +8,9 @@ Fastify / Drizzle ORM / SQLite API (`apps/api`).
 authentication (registration, sign-in, rotating refresh tokens with reuse revocation, email OTP
 verification, forgot/reset password, password updates, and profile preferences). `apps/mobile`
 wires Expo Router protected route groups, SecureStore session persistence, single-flight token
-refresh, React Query, Zustand, and React Hook Form auth screens. Financial domain screens and
-deployment configuration are not implemented yet.
+refresh, React Query, Zustand, and React Hook Form auth screens. Verified users can also manage
+accounts and balance snapshots in Accounts & Cash. Other financial screens and deployment
+configuration are not implemented yet.
 
 ## Project layout
 
@@ -18,7 +19,7 @@ deployment configuration are not implemented yet.
 ├── .github/
 │   └── copilot-instructions.md # Repository guidance
 ├── packages/
-│   └── shared/                 # @welyt/shared Zod 4 schemas, auth DTOs, and error codes
+│   └── shared/                 # @welyt/shared Zod 4 auth and account contracts
 ├── apps/
 │   ├── api/                    # Fastify + Drizzle + SQLite API
 │   │   ├── drizzle/            # Generated SQLite SQL migrations
@@ -40,10 +41,11 @@ deployment configuration are not implemented yet.
 │       ├── assets/             # Source logo and raster branding assets
 │       ├── src/
 │       │   ├── app/
-│       │   │   ├── (app)/      # Protected verified-user workspace and change-password routes
+│       │   │   ├── (app)/      # Verified workspace, Accounts & Cash, and password change
 │       │   │   ├── (auth)/     # Sign-in, sign-up, verify-email, forgot/reset-password routes
 │       │   │   └── _layout.tsx # Gesture root, QueryClientProvider, splash hydration, guards
 │       │   ├── components/auth/# Reusable auth form and shell components
+│       │   ├── features/accounts/ # Accounts API integration, account and balance forms
 │       │   ├── features/auth/  # Auth API client methods, Zustand store, React Query hooks
 │       │   ├── lib/            # Fetch client with 401 refresh queue, SecureStore adapter
 │       │   └── theme/          # Brand color palette
@@ -124,6 +126,13 @@ Missing or older rates leave the INR total incomplete. The job does not backfill
 
 Set `FX_AUTO_REFRESH=false` in `apps/api/.env` to disable the job without removing saved rates.
 If several API processes share the database, enable the job on only one of them.
+
+### Use Accounts & Cash
+
+Start the API and mobile app, sign in with a verified email, then open **Accounts & Cash** in
+**Workspace**. Choose a currency when creating an account. Open the account to record
+a dated balance in that currency, review its history, or correct a snapshot. Corrections
+retain the original balance in history, and archived accounts are read-only.
 
 ### Create or refresh a native mobile client
 

@@ -7,6 +7,26 @@ export const currencyCodeSchema = z
 export const financialDateSchema = z.iso.date();
 export const BALANCE_INPUT_PATTERN = /^(-?)(0|[1-9]\d{0,13})(?:\.(\d{1,2}))?$/;
 
+const indiaDateFormatter = new Intl.DateTimeFormat('en', {
+  timeZone: 'Asia/Kolkata',
+  calendar: 'iso8601',
+  numberingSystem: 'latn',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function indiaBusinessDate(instant: Date): string {
+  const parts = indiaDateFormatter.formatToParts(instant);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  if (!year || !month || !day) {
+    throw new Error('Unable to format the India business date');
+  }
+  return `${year.padStart(4, '0')}-${month}-${day}`;
+}
+
 const accountKindSchema = z.enum(ACCOUNT_KINDS);
 const moneyStringSchema = z.string().regex(/^-?(?:0|[1-9]\d*)\.\d{2}$/);
 const accountMetadataSchema = z.strictObject({
