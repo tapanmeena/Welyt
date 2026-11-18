@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import {
   accountDtoSchema,
+  accountsValuationDtoSchema,
   balanceSnapshotDtoSchema,
   currencyDtoSchema,
   type BalanceObservationInput,
@@ -29,6 +30,7 @@ function accountPath(accountId: string): string {
 export const accountsApi = {
   listCurrencies: () => request(currencyDtoSchema.array(), '/currencies'),
   listAccounts: () => request(accountDtoSchema.array(), '/accounts?includeArchived=true'),
+  valueAccounts: () => request(accountsValuationDtoSchema, '/accounts/valuation'),
   listSnapshots: (accountId: string) =>
     request(balanceSnapshotDtoSchema.array(), `${accountPath(accountId)}/snapshots`),
   createAccount: (body: CreateAccountInput) =>
@@ -55,6 +57,11 @@ export const accountsQueries = {
     queryOptions({
       queryKey: ['accounts', userId, 'list'],
       queryFn: accountsApi.listAccounts,
+    }),
+  valuation: (userId: string) =>
+    queryOptions({
+      queryKey: ['accounts', userId, 'valuation'],
+      queryFn: accountsApi.valueAccounts,
     }),
   currencies: (userId: string) =>
     queryOptions({

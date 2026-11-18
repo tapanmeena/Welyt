@@ -71,6 +71,7 @@ export function AccountForm({
           : list && [...list, saved],
       );
       void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: accountsQueries.valuation(userId).queryKey });
     },
   });
   const submit = handleSubmit(async (values) => {

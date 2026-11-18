@@ -10,10 +10,10 @@ import {
   AccountsShell,
   accountKindLabels,
   accountsStyles as styles,
-  displayBalance,
 } from '@/features/accounts/AccountsShell';
 import { SnapshotForm } from '@/features/accounts/SnapshotForm';
 import { accountsApi, accountsQueries } from '@/features/accounts/accounts-api';
+import { displayBalance } from '@/features/accounts/format-balance';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { colors, radii } from '@/theme/colors';
 
@@ -79,6 +79,7 @@ function AccountDetail({
         items?.map((item) => (item.id === saved.id ? saved : item)),
       );
       void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: accountsQueries.valuation(userId).queryKey });
       setPanel(null);
       setNotice('Account archived. You can still read its balance history.');
     },

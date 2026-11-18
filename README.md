@@ -134,6 +134,9 @@ Start the API and mobile app, sign in with a verified email, then open **Account
 a dated balance in that currency, review its history, or correct a snapshot. Corrections
 retain the original balance in history, and archived accounts are read-only.
 
+The Workspace cash summary values included active accounts in INR. It shows the report date,
+the dates of exchange rates used, and a subtotal when some accounts cannot be valued.
+
 ### Create or refresh a native mobile client
 
 `apps/mobile` does not currently contain generated `android/` or `ios/` directories. Generate them

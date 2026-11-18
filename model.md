@@ -13,9 +13,9 @@ The authentication entities below reflect the existing implementation unless mar
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
 and `fx_rates`. The verified-user Accounts API exposes owner-scoped account and snapshot
 operations and INR valuation using stored Frankfurter rates. Mobile Accounts & Cash uses those
-account and snapshot operations. The Home cash summary, other financial entities, and
-additional user preferences are not implemented. Entity fields below describe logical records,
-not SQL column definitions.
+account and snapshot operations, and the Workspace shows the INR cash summary. Other financial
+entities and additional user preferences are not implemented. Entity fields below describe
+logical records, not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
 Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
@@ -452,7 +452,8 @@ support require decisions when this module enters scope.
 - Distinguish unavailable data from zero balances.
 - For Accounts & Cash, value the latest snapshot on or before the report date using FX
   for that report date. When a snapshot or usable rate is missing, show the known INR
-  subtotal and identify the affected accounts without presenting a complete total.
+  subtotal and identify the affected accounts without presenting a complete total. Show the
+  report date and each exchange rate's date and age when carried forward.
 - Respect per-account `inNetWorth` and per-goal `showOnOverview` settings.
 - Count linked cash once. A trade, IPO application, or goal allocation is not another cash asset.
 - Keep debt-basis labels and excluded-module explanations visible.

@@ -16,6 +16,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthButton } from '@/components/auth/AuthButton';
 import { StatusBanner } from '@/components/auth/StatusBanner';
+import { CashSummary } from '@/features/accounts/CashSummary';
 import { authApi } from '@/features/auth/auth-api';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { useLogoutAllMutation, useLogoutMutation } from '@/features/auth/use-auth-mutations';
@@ -104,6 +105,8 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
+
+          <CashSummary userId={user.id} />
 
           {feedback ? <StatusBanner tone={feedback.tone} message={feedback.text} /> : null}
 

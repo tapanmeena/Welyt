@@ -56,6 +56,7 @@ export function SnapshotForm({
         : accountsApi.recordSnapshot(account.id, body);
     },
     onSuccess: async () => {
+      void queryClient.invalidateQueries({ queryKey: accountsQueries.valuation(userId).queryKey });
       await queryClient.invalidateQueries({ queryKey: historyKey });
     },
   });
