@@ -167,6 +167,11 @@ Gmail defaults to port 465 and requires a Google App Password. Other SMTP provid
 back to console delivery. Leave `CORS_ORIGINS` empty for native-only use; for web, list exact
 frontend origins separated by commas. Single-quote environment values containing `$`.
 
+Compose lists every supported API environment variable, including token expiry, OTP limits,
+and optional API documentation, with production defaults. Leave `SMTP_SECURE` unset to select
+implicit TLS from `SMTP_PORT` (true for port 465, false otherwise). Set it to `true` or `false`
+in the shell, root `.env`, or Portainer environment to override that choice.
+
 Use your existing host cloudflared connector. In the
 [Cloudflare dashboard](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/),
 set the published application route to a hostname such as `welyt-api.example.com` and the
