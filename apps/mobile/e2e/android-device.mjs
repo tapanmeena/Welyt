@@ -180,13 +180,15 @@ class AndroidDevice {
         if (remainingScrolls > 0) {
           remainingScrolls--;
           const x = String(Math.floor(this.width / 2));
+          const start = scroll === 'up' ? 0.28 : 0.72;
+          const end = scroll === 'up' ? 0.72 : 0.28;
           await this.shell(
             'input',
             'swipe',
             x,
-            String(Math.floor(this.height * 0.72)),
+            String(Math.floor(this.height * start)),
             x,
-            String(Math.floor(this.height * 0.28)),
+            String(Math.floor(this.height * end)),
             '280',
           );
         }

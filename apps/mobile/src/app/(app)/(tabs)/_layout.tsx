@@ -1,15 +1,14 @@
 import { Tabs } from 'expo-router';
 import { ClipboardList, Ellipsis, House, Wallet } from 'lucide-react-native';
 import { useContext } from 'react';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   WorkspaceNavigationContext,
+  renderWorkspaceTabScene,
   workspaceTabBarHeight,
 } from '@/components/navigation/WorkspaceNavigation';
 import { colors, radii } from '@/theme/colors';
-
-export const unstable_settings = { anchor: 'index' };
 
 export default function WorkspaceTabs() {
   const { bottom } = useSafeAreaInsets();
@@ -17,7 +16,8 @@ export default function WorkspaceTabs() {
 
   return (
     <Tabs
-      backBehavior="initialRoute"
+      backBehavior={Platform.OS === 'web' ? 'fullHistory' : 'firstRoute'}
+      screenLayout={renderWorkspaceTabScene}
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: colors.cream },
@@ -71,7 +71,14 @@ export default function WorkspaceTabs() {
 }
 
 const styles = StyleSheet.create({
-  bar: { backgroundColor: colors.card, borderTopColor: colors.line, paddingTop: 4 },
+  bar: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 520,
+    backgroundColor: colors.card,
+    borderTopColor: colors.line,
+    paddingTop: 4,
+  },
   tab: { borderRadius: radii.control, marginHorizontal: 3, marginBottom: 4, minHeight: 48 },
   label: { fontSize: 12, fontWeight: '600' },
   hidden: { display: 'none' },

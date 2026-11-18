@@ -6,25 +6,27 @@ applyTo: '.copilot-tracking/plans/2026-11-18/mobile-ui-refresh-plan.instructions
 
 # Welyt mobile UI refresh plan
 
-Status: Proposed. Mockup review is complete; implementation has not started.
+Status: Mockup review complete. First implementation slice: navigation. The shared visual
+foundation and screen refreshes remain pending.
 
 ## User requests
 
 * Review the mockups and use them as inspiration for the existing mobile app. The current UI is a
   proof of concept. Source: November 18 workspace discussion.
 * Plan the UI update before taking on Investments or CSV export. Source: the same discussion,
-  responding to the proposed next milestones. Include the pending iOS smoke test in refresh validation.
+  responding to the proposed next milestones.
+* Start with navigation and defer iOS testing to a later stage. Source: November 18 implementation
+  follow-up.
 
 ## Research and design direction
 
 The [synthetic FinanceView preview](../../../local/mockups/index.html) already shares Welyt's
 cream, ink navy, and rust palette. The bigger difference is hierarchy: financial information
 comes first, common tasks have a consistent entry point, and settings are out of the way.
-The [current Workspace](<../../../apps/mobile/src/app/(app)/index.tsx>) leads with a signed-in
-profile card and combines cash, module links, preferences, and session controls. The verified
-[app layout](<../../../apps/mobile/src/app/(app)/_layout.tsx>) is a stack without persistent
-navigation. Accounts and planning use working forms and queries, but show most information as
-similarly weighted cards and buttons.
+Before the navigation update, Workspace led with a signed-in profile card and combined cash,
+module links, preferences, and session controls in a stack without persistent navigation.
+Accounts and planning used working forms and queries, but showed most information as similarly
+weighted cards and buttons.
 
 | Mockup reference | Adopt for Welyt | Do not carry over |
 | ---------------- | --------------- | ----------------- |
@@ -94,22 +96,25 @@ No new endpoints, migrations, financial calculations, or native dependencies are
 
 <!-- parallelizable: false -->
 
-* [ ] Add an Expo Router tab shell for the four destinations under the verified stack. Use a
-  custom center slot for Add once Phase 5 wires it. Keep the existing public paths, route
-  guards, and session hydration. Initially point the tabs at the working module screens.
+* [x] Add an [Expo Router tab shell](<../../../apps/mobile/src/app/(app)/(tabs)/_layout.tsx>)
+  for Home, Accounts, Plan, and More under the verified stack. Preserve the existing public paths,
+  guards, and session hydration. Keep detail and editors focused without the tab bar. Add the
+  center slot in Phase 5 when its actions can be used.
+* [x] Move the profile, financial preference, password change, and session actions into
+  [More](<../../../apps/mobile/src/app/(app)/(tabs)/more.tsx>) without changing their behavior.
+  Point Plan at the existing Monthly Plan and Income History screens and retain period selection
+  when switching sections or tabs.
 * [ ] Promote [CashSummary](../../../apps/mobile/src/features/accounts/CashSummary.tsx) to
-  the primary card. Reuse its report-date valuation, existing refresh and retry behavior,
-  known subtotal, affected-account reasons, and dated FX breakdown. Do not label snapshots
-  as live bank balances or infer a zero when a value is missing.
-* [ ] Move profile and settings actions out of Home into More and its Settings screen.
-  Keep password and session behavior unchanged. Review this first visual slice in Expo web
-  and on the Pixel before applying the pattern throughout the app.
+  the primary visual card on Home. The navigation slice reused the existing summary as-is.
+  Keep its report-date valuation, refresh, known subtotal, affected-account reasons, and dated
+  FX breakdown. Do not label snapshots as live bank balances or infer zero for missing data.
+  Review that visual slice on Expo web and the Pixel before restyling the other screens.
 
 ### Phase 3: Refresh Accounts & Cash
 
 <!-- parallelizable: true -->
 
-* [ ] After Phase 2, style the [directory](<../../../apps/mobile/src/app/(app)/accounts/index.tsx>)
+* [ ] After Phase 2, style the [directory](<../../../apps/mobile/src/app/(app)/(tabs)/accounts/index.tsx>)
   with name search, account-kind filtering, and an accessible archived section. Filters affect
   the directory only, not INR totals. Join eligible rows to the
   [existing cached valuation](../../../apps/mobile/src/features/accounts/accounts-api.ts) by ID.
@@ -128,8 +133,8 @@ No new endpoints, migrations, financial calculations, or native dependencies are
 
 <!-- parallelizable: true -->
 
-* [ ] After Phase 2, give [Income History](<../../../apps/mobile/src/app/(app)/income.tsx>) and
-  [Monthly Plan](<../../../apps/mobile/src/app/(app)/monthly-plan.tsx>) a shared header and
+* [ ] After Phase 2, give [Income History](<../../../apps/mobile/src/app/(app)/(tabs)/(plan)/income.tsx>) and
+  [Monthly Plan](<../../../apps/mobile/src/app/(app)/(tabs)/(plan)/monthly-plan.tsx>) a shared header and
   section switch. Keep April-March history and month navigation distinct. Retain the selected
   period when returning from an editor or switching sections.
 * [ ] Give receipts a dated, grouped layout with original currency and INR valuation; reveal
@@ -165,10 +170,11 @@ No new endpoints, migrations, financial calculations, or native dependencies are
   without dropping coverage of cold-start session recovery, signed balances and corrections,
   cash and FX, receipt history, and monthly-plan copy and shortfall. Run `pnpm run mobile:test:android`
   on the attached Pixel with the disposable fixture, not the user's account.
-* [ ] On Expo web, review 320 px, 390 px, and desktop widths with synthetic fixtures. On Android
-  and an iOS simulator or device, verify safe areas, keyboard and Back behavior, modal dismissal,
-  the form footer and snackbar, and system text scaling. Before calling the refresh release-ready,
-  run the iOS smoke test; a JavaScript bundle export alone is not runtime verification.
+* [ ] On Expo web, review 320 px, 390 px, and desktop widths with synthetic fixtures. On web
+  and Android, verify safe areas, keyboard and Back behavior, modal dismissal, the form footer
+  and snackbar, and system text scaling.
+* [ ] Defer the iOS smoke test to a later stage. Run it on a simulator or device before claiming
+  iOS release readiness; a JavaScript bundle export alone is not runtime verification.
 * [ ] Test keyboard focus and screen-reader labels, selected tabs, error messages, and the Add
   dialog's focus return. Target at least 44-point touch controls (48 dp on Android), 4.5:1 contrast
   for normal text, and no clipped amounts or unreachable actions at large text sizes. Compare
@@ -184,14 +190,13 @@ No new endpoints, migrations, financial calculations, or native dependencies are
 * Accounts, income, and plans remain independent. Archive/correction history stays readable;
   recording income or saving a plan does not change cash. Planning shortfalls stay visible after
   the success snackbar clears.
-* The redesigned flows work on Android, iOS, and web without new API contracts or a database
-  migration. Unsupported mockup features do not appear as placeholders.
+* The redesigned flows work on Android and web without new API contracts or a database migration.
+  Unsupported mockup features do not appear as placeholders. Verify iOS separately in a later stage.
 
 ## Handoff
 
 Follow the [repository guidance](../../../.github/copilot-instructions.md) and
 [financial model](../../../model.md). The Accounts & Cash and Income & Plan implementation plans
 remain complete; this is a separate presentation milestone. Task Research and Task Plan informed
-this proposal. Use Task Implementation only after the direction is approved. Start with the shared
-foundation and Home before moving to the module screens; use the existing Metro development client
-for ordinary UI changes.
+the proposal. After the navigation slice, resume with the shared design foundation and Home
+before restyling the module screens. Use the existing Metro development client for ordinary UI changes.

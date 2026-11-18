@@ -252,7 +252,7 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
         await device.expect('Current password');
         await device.expectHidden('Accounts');
         await device.tap('Back to More');
-        await device.expect('Security & sessions');
+        await device.expect('Change password', 'Accounts');
         await device.tap('Plan');
         await device.expect('Monthly Plan', 'No plan saved for this month.');
         await device.tap('Create plan');
@@ -377,7 +377,7 @@ test('Financial modules on a USB Android device', { timeout: 600_000 }, async (t
       await device.expect('Plan saved.', 'Copied from the previous month');
       await device.tap('Enable auto-copy', { scroll: true });
       await device.expect('Disable auto-copy');
-      await device.tap('Income History');
+      await device.tap('Income History', { scroll: 'up' });
       await device.expect('Financial year total', 'INR 162.50');
       await device.tap('Home');
       await device.expect('Known cash subtotal', 'INR -62.50');
