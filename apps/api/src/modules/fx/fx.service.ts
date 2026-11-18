@@ -10,6 +10,7 @@ import {
   financialDateSchema,
   indiaBusinessDate,
   parseRateE8,
+  resolveAsOfDate,
 } from '../../lib/financial-values.ts';
 
 const foreignCurrencyCodeSchema = currencyCodeSchema.refine((code) => code !== 'INR', {
@@ -33,7 +34,7 @@ const refreshInputSchema = z.strictObject({
       'Request each base currency only once',
     ),
 });
-const providerSourceSchema = z
+export const fxProviderSourceSchema = z
   .string()
   .trim()
   .min(1)
@@ -59,15 +60,18 @@ export interface FxRefreshResult {
   status: RateWriteStatus | 'missing';
 }
 
-export type FxRateLookup =
-  | { status: 'not_required' | 'missing' }
+export type StoredFxRateLookup =
+  | { status: 'missing' }
   | { status: 'stale'; rateOn: string; ageDays: number }
   | { status: 'same_day' | 'carried_forward'; rate: FxRateRecord; ageDays: number };
 
+export type FxRateLookup = StoredFxRateLookup | { status: 'not_required' };
+
 type RateWrite = Omit<FxRateRecord, 'id' | 'quoteCurrencyCode' | 'retiredAt'>;
+type FxReader = Pick<AppDatabase, 'select'>;
 type FxDb = Pick<AppDatabase, 'select' | 'insert' | 'update'>;
 
-function assertSupportedCurrency(db: FxDb, baseCurrencyCode: string): void {
+function assertSupportedCurrency(db: FxReader, baseCurrencyCode: string): void {
   const currency = db
     .select({ code: currencies.code })
     .from(currencies)
@@ -117,7 +121,7 @@ function storeRate(db: FxDb, values: RateWrite): { status: RateWriteStatus; rate
 }
 
 function latestRate(
-  db: FxDb,
+  db: FxReader,
   baseCurrencyCode: string,
   source: string,
   userId: string | null,
@@ -132,6 +136,30 @@ function latestRate(
     .get();
 }
 
+export function lookupStoredFxRate(
+  db: FxReader,
+  userId: string,
+  baseCurrencyCode: string,
+  asOf: string,
+  providerSource: string | null,
+): StoredFxRateLookup {
+  const shared =
+    providerSource === null
+      ? undefined
+      : latestRate(db, baseCurrencyCode, providerSource, null, asOf);
+  const override = latestRate(db, baseCurrencyCode, 'manual', userId, asOf);
+  const rate = override && (!shared || override.rateOn >= shared.rateOn) ? override : shared;
+  if (!rate) {
+    return { status: 'missing' };
+  }
+
+  const ageDays = (Date.parse(asOf) - Date.parse(rate.rateOn)) / 86_400_000;
+  if (ageDays > 7) {
+    return { status: 'stale', rateOn: rate.rateOn, ageDays };
+  }
+  return { status: ageDays === 0 ? 'same_day' : 'carried_forward', rate, ageDays };
+}
+
 export class FxService {
   private readonly db: AppDatabase;
   private readonly provider: FxRateProvider;
@@ -141,7 +169,7 @@ export class FxService {
   constructor(db: AppDatabase, provider: FxRateProvider, now: () => Date = () => new Date()) {
     this.db = db;
     this.provider = provider;
-    this.source = parseInput(providerSourceSchema, provider.source);
+    this.source = parseInput(fxProviderSourceSchema, provider.source);
     this.now = now;
   }
 
@@ -219,27 +247,14 @@ export class FxService {
 
   lookupRate(userId: string, baseCurrencyCode: string, asOf?: string): FxRateLookup {
     const code = parseInput(currencyCodeSchema, baseCurrencyCode);
-    const today = indiaBusinessDate(this.now());
-    const cutoff = parseInput(financialDateSchema, asOf === undefined ? today : asOf);
-    assertNotFuture(cutoff, today, 'asOf');
+    const cutoff = resolveAsOfDate(asOf, this.now());
     if (code === 'INR') {
       return { status: 'not_required' };
     }
 
     return this.db.transaction((tx): FxRateLookup => {
       assertSupportedCurrency(tx, code);
-      const shared = latestRate(tx, code, this.source, null, cutoff);
-      const override = latestRate(tx, code, 'manual', userId, cutoff);
-      const rate = override && (!shared || override.rateOn >= shared.rateOn) ? override : shared;
-      if (!rate) {
-        return { status: 'missing' };
-      }
-
-      const ageDays = (Date.parse(cutoff) - Date.parse(rate.rateOn)) / 86_400_000;
-      if (ageDays > 7) {
-        return { status: 'stale', rateOn: rate.rateOn, ageDays };
-      }
-      return { status: ageDays === 0 ? 'same_day' : 'carried_forward', rate, ageDays };
+      return lookupStoredFxRate(tx, userId, code, cutoff, this.source);
     });
   }
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { fieldValidationError } from './errors.ts';
+import { fieldValidationError, parseInput } from './errors.ts';
 
 export const financialDateSchema = z.iso.date();
 export const currencyCodeSchema = z
@@ -33,6 +33,22 @@ export function assertNotFuture(date: string, today: string, field: string): voi
   }
 }
 
+export function resolveAsOfDate(asOf: string | undefined, now: Date): string {
+  const today = indiaBusinessDate(now);
+  const cutoff = asOf === undefined ? today : parseInput(financialDateSchema, asOf);
+  assertNotFuture(cutoff, today, 'asOf');
+  return cutoff;
+}
+
+export function indiaFiscalWindow(asOf: string): { startsOn: string; endsBefore: string } {
+  const date = new Date(`${asOf}T00:00:00Z`);
+  const startYear = date.getUTCFullYear() - (date.getUTCMonth() < 3 ? 1 : 0);
+  date.setUTCFullYear(startYear, 3, 1);
+  const startsOn = date.toISOString().replace(/T.*$/, '');
+  date.setUTCFullYear(startYear + 1);
+  return { startsOn, endsBefore: date.toISOString().replace(/T.*$/, '') };
+}
+
 const balancePattern = /^(-?)(0|[1-9]\d{0,13})(?:\.(\d{1,2}))?$/;
 const ratePattern = /^(\d{1,8})(?:\.(\d+))?$/;
 const maxSafeInteger = BigInt(Number.MAX_SAFE_INTEGER);
@@ -62,10 +78,18 @@ export function parseBalanceHundredths(balance: string, minorUnits: number): num
   return Number(match?.[1] === '-' ? -hundredths : hundredths);
 }
 
-export function formatHundredths(hundredths: number | bigint): string {
-  const value = BigInt(hundredths);
+function formatScaledDecimal(value: bigint, scale: bigint, fractionalDigits: number): string {
   const magnitude = value < 0n ? -value : value;
-  return `${value < 0n ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
+  const fraction = String(magnitude % scale).padStart(fractionalDigits, '0');
+  return `${value < 0n ? '-' : ''}${magnitude / scale}.${fraction}`;
+}
+
+export function formatHundredths(hundredths: number | bigint): string {
+  return formatScaledDecimal(BigInt(hundredths), 100n, 2);
+}
+
+export function formatRateE8(rateE8: number): string {
+  return formatScaledDecimal(BigInt(rateE8), FX_RATE_SCALE, 8);
 }
 
 export function parseRateE8(rate: string): number {

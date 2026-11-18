@@ -12,9 +12,10 @@ A universal accounting ledger is not required.
 The authentication entities below reflect the existing implementation unless marked proposed.
 Accounts & Cash v1 has four database tables: `currencies`, `accounts`, `account_observations`,
 and `fx_rates`. Only INR is seeded. The backend supports owner-scoped account and snapshot
-operations and fixture-tested daily FX ingestion and lookup. No live FX provider, scheduler,
-or financial API routes are wired. Other financial entities and additional user preferences
-are not implemented. Entity fields below describe logical records, not SQL column definitions.
+operations, daily FX ingestion and lookup tested with fixtures, and INR account valuation.
+No live FX provider, scheduler, or financial API routes are wired. Other financial entities
+and additional user preferences are not implemented. Entity fields below describe logical
+records, not SQL column definitions.
 
 The first financial milestone (v1) is Accounts & Cash. Income & Plan, Investments, Loans &
 Lending, IPO Tracker, and Goals are planned for later milestones. Insurance remains deferred.
@@ -416,6 +417,9 @@ support require decisions when this module enters scope.
 - Label the view as incomplete when modules are disabled or required prices/FX are missing.
   Do not present a partial valuation as a complete total.
 - Distinguish unavailable data from zero balances.
+- For Accounts & Cash, value the latest snapshot on or before the report date using FX
+  for that report date. When a snapshot or usable rate is missing, show the known INR
+  subtotal and identify the affected accounts without presenting a complete total.
 - Respect per-account `inNetWorth` and per-goal `showOnOverview` settings.
 - Count linked cash once. A trade, IPO application, or goal allocation is not another cash asset.
 - Keep debt-basis labels and excluded-module explanations visible.

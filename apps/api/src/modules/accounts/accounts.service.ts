@@ -18,6 +18,7 @@ import {
   formatHundredths,
   indiaBusinessDate,
   parseBalanceHundredths,
+  resolveAsOfDate,
 } from '../../lib/financial-values.ts';
 
 const accountMetadataSchema = z.strictObject({
@@ -71,6 +72,14 @@ type AccountsDb = Pick<AppDatabase, 'select' | 'update'>;
 
 function ownedAccount(userId: string, accountId: string) {
   return and(eq(accounts.userId, userId), eq(accounts.id, accountId));
+}
+
+export function currentObservationsAsOf(accountId: string | typeof accounts.id, asOf: string) {
+  return and(
+    eq(accountObservations.accountId, accountId),
+    lte(accountObservations.observedOn, asOf),
+    isNull(accountObservations.retiredAt),
+  );
 }
 
 function requireAccount(db: AccountsDb, userId: string, accountId: string): AccountRecord {
@@ -242,19 +251,11 @@ export class AccountsService {
   ): BalanceObservation | null {
     return this.db.transaction((tx) => {
       const account = requireAccount(tx, userId, accountId);
-      const today = indiaBusinessDate(this.now());
-      const cutoff = parseInput(financialDateSchema, asOf === undefined ? today : asOf);
-      assertNotFuture(cutoff, today, 'asOf');
+      const cutoff = resolveAsOfDate(asOf, this.now());
       const row = tx
         .select()
         .from(accountObservations)
-        .where(
-          and(
-            eq(accountObservations.accountId, account.id),
-            lte(accountObservations.observedOn, cutoff),
-            isNull(accountObservations.retiredAt),
-          ),
-        )
+        .where(currentObservationsAsOf(account.id, cutoff))
         .orderBy(desc(accountObservations.observedOn))
         .limit(1)
         .get();
