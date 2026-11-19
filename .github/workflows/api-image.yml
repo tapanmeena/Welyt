@@ -66,3 +66,11 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=api-arm64
           cache-to: type=gha,mode=max,scope=api-arm64
+
+      - name: Trigger Arcane deployment
+        env:
+          ARCANE_WEBHOOK_TOKEN: ${{ secrets.ARCANE_WEBHOOK_TOKEN }}
+        run: |
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 2 \
+            -X POST "https://arcane.tapanmeena.com/api/webhooks/trigger/${ARCANE_WEBHOOK_TOKEN}"
