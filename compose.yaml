@@ -5,7 +5,7 @@ services:
     image: ghcr.io/tapanmeena/welyt-api:latest
     pull_policy: always
     ports:
-      - '127.0.0.1:3000:3000'
+      - '127.0.0.1:3784:3784'
     init: true
     restart: unless-stopped
     stop_grace_period: 30s
@@ -19,7 +19,7 @@ services:
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
-      PORT: '3000'
+      PORT: '3784'
       DATABASE_URL: /data/welyt.db
       TRUST_PROXY: 172.30.250.1
       AUTHKIT_ISSUER_URL: ${AUTHKIT_ISSUER_URL:-https://auth.tapanmeena.com}
