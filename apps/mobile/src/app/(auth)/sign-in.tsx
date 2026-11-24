@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { loginSchema, type LoginInput } from '@welyt/shared';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { AUTH_ERROR_CODES, loginSchema, type LoginInput } from '@welyt/shared';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -9,10 +9,13 @@ import { AuthScreenShell } from '@/components/auth/AuthScreenShell';
 import { FormTextField, type FormTextInputHandle } from '@/components/auth/FormTextField';
 import { StatusBanner } from '@/components/auth/StatusBanner';
 import { resolveFormError } from '@/components/auth/form-errors';
+import { authApi } from '@/features/auth/auth-api';
 import { useLoginMutation } from '@/features/auth/use-auth-mutations';
+import { ApiRequestError } from '@/lib/api-client';
 import { colors } from '@/theme/colors';
 
 export default function SignInScreen() {
+  const router = useRouter();
   const params = useLocalSearchParams<{ reset?: string; verified?: string }>();
   const loginMutation = useLoginMutation();
   const [bannerError, setBannerError] = useState<string | null>(null);
@@ -43,6 +46,16 @@ export default function SignInScreen() {
     try {
       await loginMutation.mutateAsync(values);
     } catch (error) {
+      if (error instanceof ApiRequestError && error.code === AUTH_ERROR_CODES.EMAIL_NOT_VERIFIED) {
+        void authApi.resendVerification(values.email).catch(() => {
+          // Best-effort OTP send; user can also tap Resend on the verification screen
+        });
+        router.push({
+          pathname: '/verify-email',
+          params: { email: values.email },
+        });
+        return;
+      }
       const topError = resolveFormError(error, setError, ['email', 'password']);
       setBannerError(topError || null);
     }

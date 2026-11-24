@@ -218,6 +218,9 @@ importers:
       '@fastify/swagger-ui':
         specifier: ^6.1.4
         version: 6.1.4
+      '@tapanmeena/authkit-verify':
+        specifier: ^0.3.0
+        version: 0.3.0
       '@welyt/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -233,9 +236,6 @@ importers:
       jose:
         specifier: ^6.2.17
         version: 6.2.17
-      nodemailer:
-        specifier: ^10.5.0
-        version: 10.5.0
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -249,9 +249,6 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2
-      '@types/nodemailer':
-        specifier: ^8.0.2
-        version: 8.0.2
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
@@ -294,6 +291,12 @@ importers:
       '@tanstack/react-query':
         specifier: 5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.0)
+      '@tapanmeena/authkit-client':
+        specifier: ^0.3.0
+        version: 0.3.0
+      '@tapanmeena/authkit-shared':
+        specifier: ^0.3.0
+        version: 0.3.0
       '@welyt/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -2101,6 +2104,18 @@ packages:
       '@types/react':
         optional: true
 
+  '@tapanmeena/authkit-client@0.3.0':
+    resolution: {integrity: sha512-bP87s5DGUX2FTlJ9ukIbltv4o+OQIPjWt1/LiZvCE181rVNDXuQAqiiyGdhwU2N1NZZQb+6m12I/wazYPMIN/g==}
+    engines: {node: '>=20'}
+
+  '@tapanmeena/authkit-shared@0.3.0':
+    resolution: {integrity: sha512-G+AIng/9jkLkY23LCLoRg+e7OwgmJyRffOWlerm2p7EuZ4hFQd1iVW4RYcS08qMi35UmIhoOU3O5u5ncsR3zUA==}
+    engines: {node: '>=20'}
+
+  '@tapanmeena/authkit-verify@0.3.0':
+    resolution: {integrity: sha512-peWF51M/5zL1BZhrVbnVxIEevtcnSCQKoWdABL9adVUf55qeLemyss+Tf/4AoS/HJRGxM8TpnHpPsXgZKR7xKQ==}
+    engines: {node: '>=20'}
+
   '@types/better-sqlite3@9.6.0':
     resolution: {integrity: sha512-ZEEwBSgMu7GYJOynoagg5X9JbxfL6dTJDsgViJIqh67jV44kyOr9RXfmFjLK5rzC4MWssP06t9hu/JwGDnUbCg==}
 
@@ -2124,9 +2139,6 @@ packages:
 
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
-
-  '@types/nodemailer@8.0.2':
-    resolution: {integrity: sha512-c7M5ox8p0nEOfbJ2E9Qcmt8/QCu/VzsiAhzBiZbvky2PhKZDHpKB3sQHBM5MEZNkCfBOaS6S9//AGPRTNB7IaA==}
 
   '@types/react-test-renderer@19.3.1':
     resolution: {integrity: sha512-9AwMfeBOcXsN5kC4oAauNTOKEwqLHtc69tkJC2CihQ5fCELDwzfQvookvtyaxm6i+vc5LLD0V5OLB8arzY8Smw==}
@@ -4297,10 +4309,6 @@ packages:
   node-releases@2.0.64:
     resolution: {integrity: sha512-zAPCKqMcnqs2nGy6nlkm7JduFseiBJy3EXHGLh+8pFR+TxGCBxxiEN21+UROU5CKwX/f4TlUcYjiM+vs/tsyxw==}
     engines: {node: '>=18'}
-
-  nodemailer@10.5.0:
-    resolution: {integrity: sha512-L/w/HH5MqpzMDuZD7fQdt/+KqymuvrpaApaIjAH2XA3ILePwlcvXCVVvP75xVrXCEt2ggK2marrrHHFB5Qu0kA==}
-    engines: {node: '>=20.0.0'}
 
   noxcturnal@0.1.14:
     resolution: {integrity: sha512-dYhWwCVfxlxnyzkVvP6W+XXd7lKikl04YckNur8xV4IejmgYDPq2ykSvzA2zfYVaNgEvmWDceOVRFn3sjry69Q==}
@@ -6943,6 +6951,19 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.3.0
 
+  '@tapanmeena/authkit-client@0.3.0':
+    dependencies:
+      '@tapanmeena/authkit-shared': 0.3.0
+
+  '@tapanmeena/authkit-shared@0.3.0':
+    dependencies:
+      zod: 4.6.7
+
+  '@tapanmeena/authkit-verify@0.3.0':
+    dependencies:
+      '@tapanmeena/authkit-shared': 0.3.0
+      jose: 6.2.17
+
   '@types/better-sqlite3@9.6.0':
     dependencies:
       '@types/node': 24.19.2
@@ -6966,10 +6987,6 @@ snapshots:
   '@types/node@24.19.2':
     dependencies:
       undici-types: 7.24.6
-
-  '@types/nodemailer@8.0.2':
-    dependencies:
-      '@types/node': 24.19.2
 
   '@types/react-test-renderer@19.3.1':
     dependencies:
@@ -9521,8 +9538,6 @@ snapshots:
   node-int64@0.4.0: {}
 
   node-releases@2.0.64: {}
-
-  nodemailer@10.5.0: {}
 
   noxcturnal@0.1.14:
     dependencies:

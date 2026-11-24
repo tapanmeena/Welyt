@@ -1,6 +1,7 @@
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import { createAuthVerifier, type AuthVerifier } from '@tapanmeena/authkit-verify';
 import { AUTH_ERROR_CODES } from '@welyt/shared';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { z } from 'zod';
@@ -8,7 +9,6 @@ import { loadApiEnv, type ApiEnv } from './config/env.ts';
 import { createDatabase, type DatabaseConnection } from './db/client.ts';
 import { startDailyJob } from './lib/daily-job.ts';
 import { AppError, zodToValidationError } from './lib/errors.ts';
-import { createMailer, type Mailer } from './lib/mailer.ts';
 import { registerAccountsRoutes } from './modules/accounts/accounts.routes.ts';
 import { registerAuthRoutes } from './modules/auth/auth.routes.ts';
 import { AuthService } from './modules/auth/auth.service.ts';
@@ -31,7 +31,7 @@ declare module 'fastify' {
 export interface BuildAppOptions extends FastifyServerOptions {
   env?: ApiEnv;
   database?: DatabaseConnection;
-  mailer?: Mailer;
+  authVerifier?: AuthVerifier;
   enableRateLimit?: boolean;
   enableDocs?: boolean;
 }
@@ -40,7 +40,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const {
     env: providedEnv,
     database: providedDatabase,
-    mailer: providedMailer,
+    authVerifier: providedAuthVerifier,
     enableRateLimit = true,
     enableDocs,
     ...fastifyOptions
@@ -49,12 +49,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const env = providedEnv ?? loadApiEnv();
   const docsEnabled = enableDocs ?? env.apiDocsEnabled;
   const app = Fastify({ trustProxy: env.trustProxy, ...fastifyOptions });
-
-  if (env.usingFallbackDevSecret && env.nodeEnv !== 'test') {
-    app.log.warn(
-      'JWT_ACCESS_SECRET is not set; using local development fallback secret. Set JWT_ACCESS_SECRET before deploying.',
-    );
-  }
 
   const ownsDatabase = !providedDatabase;
   const database =
@@ -95,53 +89,18 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
   });
 
-  const ownsMailer = !providedMailer;
-  const mailer = providedMailer ?? createMailer(env, app.log);
-  const authGuards = createAuthGuards(database.db, env);
-  const authService = new AuthService(database.db, env, mailer);
+  const authVerifier =
+    providedAuthVerifier ??
+    createAuthVerifier({
+      issuer: env.authkitIssuerUrl,
+      expectedPool: env.authkitPoolSlug,
+    });
+  const authGuards = createAuthGuards(database.db, authVerifier);
+  const authService = new AuthService(database.db);
 
   app.decorate('authGuards', authGuards);
   app.decorate('authService', authService);
   app.decorateRequest('auth', null);
-
-  if (ownsMailer && mailer.close) {
-    app.addHook('onClose', async () => {
-      mailer.close?.();
-    });
-  }
-
-  if (env.nodeEnv !== 'test') {
-    app.addHook('onReady', async () => {
-      authService.purgeExpiredRecords();
-      if (ownsMailer && mailer.verifyConnection) {
-        try {
-          await mailer.verifyConnection();
-          app.log.info('SMTP mailer connection verified');
-        } catch (err) {
-          app.log.error(
-            err,
-            'SMTP mailer verification failed. Check SMTP_USER and SMTP_PASS (Gmail App Password) in apps/api/.env',
-          );
-        }
-      }
-    });
-
-    const cleanupTimer = setInterval(
-      () => {
-        try {
-          authService.purgeExpiredRecords();
-        } catch (err) {
-          app.log.warn(err, 'Failed to purge expired auth records');
-        }
-      },
-      60 * 60 * 1000,
-    );
-    cleanupTimer.unref();
-
-    app.addHook('onClose', async () => {
-      clearInterval(cleanupTimer);
-    });
-  }
 
   await app.register(helmet, {
     contentSecurityPolicy: false,
@@ -224,8 +183,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerAuthRoutes(app, {
     authService,
     authGuards,
-    db: database.db,
-    env,
   });
   await app.register(registerAccountsRoutes, { db: database.db });
   await app.register(registerIncomeRoutes, { db: database.db });

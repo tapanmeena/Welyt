@@ -45,7 +45,7 @@ export function useVerifyEmailMutation() {
 
 export function useResendVerificationMutation() {
   return useMutation({
-    mutationFn: () => authApi.resendVerification(),
+    mutationFn: (email?: string) => authApi.resendVerification(email),
   });
 }
 

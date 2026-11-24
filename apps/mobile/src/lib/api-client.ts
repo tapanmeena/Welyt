@@ -1,12 +1,9 @@
-import {
-  AUTH_ERROR_CODES,
-  apiErrorResponseSchema,
-  type ApiErrorCode,
-  type AuthTokensDto,
-} from '@welyt/shared';
+import { AUTH_ERROR_CODES, apiErrorResponseSchema, type ApiErrorCode } from '@welyt/shared';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+const DEFAULT_AUTHKIT_URL = 'https://auth.tapanmeena.com';
+const DEFAULT_AUTHKIT_CLIENT_ID = 'welyt-mobile';
 const LOOPBACK_URL_PATTERN = /^(https?:\/\/)(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/.*)?$/i;
 
 function extractDevMetroHost(): string | null {
@@ -27,24 +24,28 @@ function extractDevMetroHost(): string | null {
   return null;
 }
 
+function rewriteDevLoopbackUrl(url: string): string {
+  if (__DEV__ && Platform.OS !== 'web') {
+    const loopbackMatch = LOOPBACK_URL_PATTERN.exec(url);
+    if (loopbackMatch) {
+      const [, protocol, , port = '', pathname = ''] = loopbackMatch;
+      const metroHost = extractDevMetroHost();
+      if (metroHost) {
+        return `${protocol}${metroHost}${port}${pathname}`;
+      }
+      if (Platform.OS === 'android') {
+        return `${protocol}10.0.2.2${port}${pathname}`;
+      }
+    }
+  }
+  return url;
+}
+
 export function getApiBaseUrl(): string {
   const configured = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '');
 
   if (configured) {
-    if (__DEV__ && Platform.OS !== 'web') {
-      const loopbackMatch = LOOPBACK_URL_PATTERN.exec(configured);
-      if (loopbackMatch) {
-        const [, protocol, , port = '', pathname = ''] = loopbackMatch;
-        const metroHost = extractDevMetroHost();
-        if (metroHost) {
-          return `${protocol}${metroHost}${port}${pathname}`;
-        }
-        if (Platform.OS === 'android') {
-          return `${protocol}10.0.2.2${port}${pathname}`;
-        }
-      }
-    }
-    return configured;
+    return rewriteDevLoopbackUrl(configured);
   }
 
   if (Platform.OS !== 'web') {
@@ -58,6 +59,25 @@ export function getApiBaseUrl(): string {
   }
 
   return 'http://localhost:3000';
+}
+
+export function getAuthKitBaseUrl(): string {
+  const extraUrl =
+    typeof Constants.expoConfig?.extra?.authkitUrl === 'string'
+      ? Constants.expoConfig.extra.authkitUrl.trim()
+      : '';
+  const configured = (process.env.EXPO_PUBLIC_AUTHKIT_URL?.trim() || extraUrl).replace(/\/+$/, '');
+  return rewriteDevLoopbackUrl(configured || DEFAULT_AUTHKIT_URL);
+}
+
+export function getAuthKitClientId(): string {
+  const extraClientId =
+    typeof Constants.expoConfig?.extra?.authkitClientId === 'string'
+      ? Constants.expoConfig.extra.authkitClientId.trim()
+      : '';
+  return (
+    process.env.EXPO_PUBLIC_AUTHKIT_CLIENT_ID?.trim() || extraClientId || DEFAULT_AUTHKIT_CLIENT_ID
+  );
 }
 
 export class ApiRequestError extends Error {
@@ -85,12 +105,10 @@ export class ApiRequestError extends Error {
 export interface AuthClientBindings {
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
-  onTokensRefreshed: (tokens: AuthTokensDto) => Promise<void>;
-  onSessionInvalidated: () => Promise<void>;
+  refreshAccessToken: () => Promise<string | null>;
 }
 
 let authBindings: AuthClientBindings | null = null;
-let inFlightRefreshPromise: Promise<string | null> | null = null;
 
 export function bindAuthToApiClient(bindings: AuthClientBindings): void {
   authBindings = bindings;
@@ -153,62 +171,19 @@ async function performRawFetch(
   }
 }
 
-async function refreshAccessTokenSingleFlight(): Promise<string | null> {
+async function tryRefreshAccessToken(): Promise<string | null> {
   if (!authBindings) {
     return null;
   }
 
-  if (inFlightRefreshPromise) {
-    return inFlightRefreshPromise;
-  }
-
-  const refreshToken = authBindings.getRefreshToken();
-  if (!refreshToken) {
+  try {
+    return await authBindings.refreshAccessToken();
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.isNetworkError) {
+      throw error;
+    }
     return null;
   }
-
-  const currentBindings = authBindings;
-
-  inFlightRefreshPromise = (async () => {
-    try {
-      const response = await performRawFetch(
-        '/auth/refresh',
-        {
-          method: 'POST',
-          body: { refreshToken },
-          skipAuth: true,
-          skipRefresh: true,
-        },
-        null,
-      );
-
-      const payload = await parseJsonSafe(response);
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          await currentBindings.onSessionInvalidated();
-        }
-        return null;
-      }
-
-      const data = payload as { tokens?: AuthTokensDto } | null;
-      if (!data?.tokens?.accessToken || !data.tokens.refreshToken) {
-        return null;
-      }
-
-      await currentBindings.onTokensRefreshed(data.tokens);
-      return data.tokens.accessToken;
-    } catch (error) {
-      if (error instanceof ApiRequestError && error.isNetworkError) {
-        throw error;
-      }
-      return null;
-    } finally {
-      inFlightRefreshPromise = null;
-    }
-  })();
-
-  return inFlightRefreshPromise;
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -223,7 +198,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     !options.accessTokenOverride &&
     authBindings?.getRefreshToken()
   ) {
-    initialToken = await refreshAccessTokenSingleFlight();
+    initialToken = await tryRefreshAccessToken();
   }
 
   let response = await performRawFetch(path, options, initialToken);
@@ -235,7 +210,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     !options.accessTokenOverride &&
     authBindings?.getRefreshToken()
   ) {
-    const refreshedAccessToken = await refreshAccessTokenSingleFlight();
+    const refreshedAccessToken = await tryRefreshAccessToken();
     if (refreshedAccessToken) {
       response = await performRawFetch(path, options, refreshedAccessToken);
     }

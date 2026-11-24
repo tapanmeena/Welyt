@@ -7,8 +7,6 @@ import {
   accountDtoSchema,
   accountsValuationDtoSchema,
   apiErrorResponseSchema,
-  authSessionResponseSchema,
-  authVerifyEmailResponseSchema,
   balanceSnapshotDtoSchema,
   currencyDtoSchema,
   latestBalanceSnapshotResponseSchema,
@@ -18,8 +16,8 @@ import { buildApp } from '../app.ts';
 import { loadApiEnv } from '../config/env.ts';
 import { createDatabase } from '../db/client.ts';
 import { fxRates } from '../db/schema.ts';
-import { MemoryMailer } from '../lib/mailer.ts';
 import { FRANKFURTER_SOURCE } from '../modules/fx/frankfurter.provider.ts';
+import { createTestAuthHarness } from './test-auth.ts';
 
 const bankAccount = { name: 'Everyday account', kind: 'bank' } as const;
 const observedOn = '2024-04-01';
@@ -36,11 +34,11 @@ function expectError(
 
 async function setup(t: TestContext) {
   const database = createDatabase(':memory:');
-  const mailer = new MemoryMailer();
+  const auth = createTestAuthHarness();
   const app = await buildApp({
     env: loadApiEnv({ NODE_ENV: 'test' }),
     database,
-    mailer,
+    authVerifier: auth.authVerifier,
     logger: false,
     enableRateLimit: false,
   });
@@ -56,28 +54,11 @@ async function setup(t: TestContext) {
     app,
     db: database.db,
     async register(email: string, verify = true) {
-      const registration = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: { email, name: 'Accounts fixture', password: 'Password123' },
+      return auth.authHeader({
+        email,
+        name: 'Accounts fixture',
+        emailVerified: verify,
       });
-      assert.equal(registration.statusCode, 201, registration.body);
-      const { tokens } = authSessionResponseSchema.parse(registration.json());
-      const headers = { authorization: `Bearer ${tokens.accessToken}` };
-      if (!verify) return headers;
-
-      const code = mailer.verifications.find((message) => message.to === email)?.code;
-      assert.ok(code);
-      const verification = await app.inject({
-        method: 'POST',
-        url: '/auth/verify-email',
-        headers,
-        payload: { code },
-      });
-      assert.equal(verification.statusCode, 200, verification.body);
-      const verified = authVerifyEmailResponseSchema.parse(verification.json());
-      assert.ok(verified.accessToken);
-      return { authorization: `Bearer ${verified.accessToken}` };
     },
   };
 }

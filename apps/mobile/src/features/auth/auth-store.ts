@@ -9,7 +9,12 @@ import {
   updatePersistedRefreshToken,
   updatePersistedUser,
 } from '@/lib/secure-storage';
-import { authApi } from './auth-api';
+import {
+  authApi,
+  bindStoreToAuthKit,
+  clearAuthKitCachedTokens,
+  seedAuthKitTokens,
+} from './auth-api';
 
 export type AuthStatus = 'hydrating' | 'unauthenticated' | 'authenticated';
 
@@ -41,6 +46,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     hydrationPromise = (async () => {
       const persisted = await loadPersistedSession();
       if (!persisted) {
+        clearAuthKitCachedTokens();
         set({
           status: 'unauthenticated',
           user: null,
@@ -50,8 +56,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
+      let activeRefreshToken = persisted.refreshToken;
+      let activeAccessToken: string | null = null;
+
       try {
         const { tokens } = await authApi.refresh(persisted.refreshToken);
+        activeRefreshToken = tokens.refreshToken;
+        activeAccessToken = tokens.accessToken;
+
         const { user } = await authApi.me(tokens.accessToken);
 
         await savePersistedSession({
@@ -66,23 +78,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           refreshToken: tokens.refreshToken,
         });
       } catch (error) {
-        if (error instanceof ApiRequestError && error.isNetworkError) {
-          // Offline resilience: retain persisted refresh token and cached user on transient network failure
+        if (
+          error instanceof ApiRequestError &&
+          (error.statusCode === 401 || error.statusCode === 403)
+        ) {
+          clearAuthKitCachedTokens();
+          await clearPersistedSession();
           set({
-            status: 'authenticated',
-            user: persisted.user,
+            status: 'unauthenticated',
+            user: null,
             accessToken: null,
-            refreshToken: persisted.refreshToken,
+            refreshToken: null,
           });
           return;
         }
 
-        await clearPersistedSession();
+        // Offline / transient failure resilience: retain persisted session and latest rotated refresh token
+        seedAuthKitTokens({
+          accessToken: activeAccessToken,
+          refreshToken: activeRefreshToken,
+        });
         set({
-          status: 'unauthenticated',
-          user: null,
-          accessToken: null,
-          refreshToken: null,
+          status: 'authenticated',
+          user: persisted.user,
+          accessToken: activeAccessToken,
+          refreshToken: activeRefreshToken,
         });
       }
     })();
@@ -95,6 +115,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setSession: async (session) => {
+    seedAuthKitTokens({
+      accessToken: session.tokens.accessToken,
+      refreshToken: session.tokens.refreshToken,
+      expiresInSeconds: session.tokens.expiresIn,
+    });
     await savePersistedSession({
       refreshToken: session.tokens.refreshToken,
       user: session.user,
@@ -126,6 +151,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearSession: async () => {
+    clearAuthKitCachedTokens();
     await clearPersistedSession();
     queryClient.clear();
     set({
@@ -137,13 +163,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
-bindAuthToApiClient({
-  getAccessToken: () => useAuthStore.getState().accessToken,
-  getRefreshToken: () => useAuthStore.getState().refreshToken,
+bindStoreToAuthKit({
+  getSessionTokens: () => {
+    const state = useAuthStore.getState();
+    return {
+      accessToken: state.accessToken,
+      refreshToken: state.refreshToken,
+    };
+  },
+  getCurrentUserEmail: () => useAuthStore.getState().user?.email ?? null,
   onTokensRefreshed: async (tokens) => {
-    await useAuthStore.getState().updateTokens(tokens);
+    if (useAuthStore.getState().status === 'authenticated' || hydrationPromise !== null) {
+      await useAuthStore.getState().updateTokens(tokens);
+    }
   },
   onSessionInvalidated: async () => {
     await useAuthStore.getState().clearSession();
+  },
+});
+
+bindAuthToApiClient({
+  getAccessToken: () => useAuthStore.getState().accessToken,
+  getRefreshToken: () => useAuthStore.getState().refreshToken,
+  refreshAccessToken: async () => {
+    const refreshToken = useAuthStore.getState().refreshToken;
+    if (!refreshToken) {
+      return null;
+    }
+    const { tokens } = await authApi.refresh(refreshToken);
+    return tokens.accessToken;
   },
 });

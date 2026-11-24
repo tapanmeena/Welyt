@@ -5,6 +5,8 @@ ios/
 dist/
 web-build/
 artifacts/
+.copilot-tracking/
+apps/api/drizzle/
 pnpm-lock.yaml
 .env*
 google-services.json

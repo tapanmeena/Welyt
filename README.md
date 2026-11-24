@@ -7,13 +7,15 @@ Welyt is a pnpm workspace monorepo for a personal finance application, containin
 contracts (`packages/shared`), an Expo / React Native / TypeScript client (`apps/mobile`), and a
 Fastify / Drizzle ORM / SQLite API (`apps/api`).
 
-`apps/api` provides SQLite persistence via Drizzle ORM, `GET /health`, and full email/password
-authentication (registration, sign-in, rotating refresh tokens with reuse revocation, email OTP
-verification, forgot/reset password, password updates, and profile preferences). `apps/mobile`
-wires Expo Router protected route groups, SecureStore session persistence, single-flight token
-refresh, React Query, Zustand, and React Hook Form auth screens. Verified users can also manage
-accounts and balance snapshots in Accounts & Cash. Other financial screens are not implemented yet.
-Docker Compose runs the API with persistent SQLite storage behind an existing host Cloudflare Tunnel.
+`apps/api` provides SQLite persistence via Drizzle ORM, `GET /health`, AuthKit Ed25519 JWKS bearer
+token verification (`@tapanmeena/authkit-verify`), automatic local user linking/provisioning, and
+profile preferences (`GET/PATCH /auth/me`). `apps/mobile` integrates with AuthKit
+(`https://auth.tapanmeena.com`, pool `one-auth`, client `welyt-mobile`) via
+`@tapanmeena/authkit-client`, wiring Expo Router protected route groups, SecureStore session
+persistence, single-flight token refresh, React Query, Zustand, and React Hook Form auth screens.
+Verified users can manage accounts and balance snapshots in Accounts & Cash, track income receipts,
+and save monthly plans. Docker Compose runs the API with persistent SQLite storage behind an
+existing host Cloudflare Tunnel.
 
 ## Project layout
 
@@ -30,9 +32,9 @@ Docker Compose runs the API with persistent SQLite storage behind an existing ho
 │   │   │   ├── __tests__/      # Fastify inject + in-memory SQLite integration tests
 │   │   │   ├── config/         # Environment validation
 │   │   │   ├── db/             # Drizzle schema, client, and migration runner
-│   │   │   ├── lib/            # Password scrypt, JWT, OTP crypto, errors, mailer
-│   │   │   ├── modules/auth/   # Auth service and routes (/auth/*)
-│   │   │   ├── plugins/        # Bearer JWT and verified-email route guards
+│   │   │   ├── lib/            # Daily job runner, financial value helpers, and errors
+│   │   │   ├── modules/auth/   # Profile service and routes (GET/PATCH /auth/me)
+│   │   │   ├── plugins/        # AuthKit JWKS bearer and verified-email route guards
 │   │   │   ├── app.ts          # Fastify app builder, plugins, and routes
 │   │   │   └── server.ts       # HTTP server entry point
 │   │   ├── Dockerfile          # Multi-stage production API image
@@ -115,13 +117,9 @@ pnpm run api
 
 This builds `@welyt/shared`, runs pending Drizzle SQLite migrations against `DATABASE_URL`
 (defaulting to `apps/api/data/welyt.db`), and starts the Fastify server in watch mode on
-`http://localhost:3000` (configurable with `HOST` and `PORT`). Set `SMTP_USER` (your Gmail address)
-and `SMTP_PASS` (your 16-character Google App Password) in `apps/api/.env` to deliver real
-verification and password reset emails over Gmail SMTP; when left blank, codes and `welyt://` deep
-links are logged to the API console.
-
-For development email deep links, set `APP_SCHEME=welyt-dev` in `apps/api/.env`, as shown in the
-environment template. Use `welyt-preview` for a preview API and `welyt` for production.
+`http://localhost:3000` (configurable with `HOST` and `PORT`). By default, bearer tokens are
+verified against AuthKit (`AUTHKIT_ISSUER_URL=https://auth.tapanmeena.com`,
+`AUTHKIT_POOL_SLUG=one-auth`).
 
 Open the [Welyt landing page](http://localhost:3000/) in a browser and follow **Service status** to
 [Service Pulse](http://localhost:3000/health). This check confirms that the API answers HTTP
@@ -132,10 +130,9 @@ browser.
 
 In `development` mode (`API_DOCS_ENABLED=true` by default), the server exposes interactive Swagger
 UI documentation at `http://localhost:3000/docs` and the raw OpenAPI 3.0 specification at
-`http://localhost:3000/docs/json`. Sign in through `POST /auth/login` or `POST /auth/register`,
-paste `tokens.accessToken` into **Authorize**, and execute requests directly from your browser.
-Interactive docs are disabled by default outside `development` unless `API_DOCS_ENABLED=true` is
-set explicitly.
+`http://localhost:3000/docs/json`. Obtain an AuthKit access token, paste it into **Authorize**, and
+execute requests directly from your browser. Interactive docs are disabled by default outside
+`development` unless `API_DOCS_ENABLED=true` is set explicitly.
 
 ### Run the API on a Raspberry Pi with Docker
 
@@ -160,24 +157,18 @@ databases, and host dependencies.
 ```bash
 cp .env.example .env
 chmod 600 .env
-openssl rand -hex 32
 ```
 
-Edit the root `.env`, not `apps/api/.env`, and set:
+Edit the root `.env`, not `apps/api/.env`, and configure if needed:
 
-- `JWT_ACCESS_SECRET` to the generated value; preserve it across upgrades
-- `SMTP_USER` and `SMTP_PASS` to working SMTP credentials
+- `AUTHKIT_ISSUER_URL` (defaults to `https://auth.tapanmeena.com`)
+- `AUTHKIT_POOL_SLUG` (defaults to `one-auth`)
 - `APP_SCHEME` to `welyt`, `welyt-preview`, or `welyt-dev`, matching the installed app
 
-Gmail defaults to port 465 and requires a Google App Password. Other SMTP providers can override
-`SMTP_HOST`, `SMTP_PORT`, and `SMTP_FROM`. Missing credentials stop deployment instead of falling
-back to console delivery. Leave `CORS_ORIGINS` empty for native-only use; for web, list exact
-frontend origins separated by commas. Single-quote environment values containing `$`.
-
-Compose lists every supported API environment variable, including token expiry, OTP limits,
-and optional API documentation, with production defaults. Leave `SMTP_SECURE` unset to select
-implicit TLS from `SMTP_PORT` (true for port 465, false otherwise). Set it to `true` or `false`
-in the shell, root `.env`, or Portainer environment to override that choice.
+Leave `CORS_ORIGINS` empty for native-only use; for web, list exact frontend origins separated by
+commas. Single-quote environment values containing `$`. Compose lists every supported API
+environment variable, including AuthKit issuer/pool settings and optional API documentation, with
+production defaults.
 
 Use your existing host cloudflared connector. In the
 [Cloudflare dashboard](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/),
@@ -245,8 +236,8 @@ ghcr.io/owner/repository-api:sha-FULL_COMMIT_SHA
 
 For example, `owner/Welyt` publishes `ghcr.io/owner/welyt-api`. Image names are lowercased
 automatically. The workflow uses the built-in `GITHUB_TOKEN` with package-write permission;
-no publishing PAT or application credentials are needed in GitHub Actions. Keep JWT and SMTP
-credentials on the Pi or in Portainer, not in the repository or image. Your existing host
+no publishing PAT or application credentials are needed in GitHub Actions. Keep runtime `.env`
+settings on the Pi or in Portainer, not in the repository or image. Your existing host
 connector manages its own tunnel credentials.
 
 The published Welyt image permits anonymous pulls, so registry credentials are not required.

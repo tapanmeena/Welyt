@@ -49,14 +49,17 @@ a new client. Use Expo-compatible dependency selections
   in `apps/mobile/src/app/`. `apps/mobile/src/app/_layout.tsx` owns the root `GestureHandlerRootView`,
   `QueryClientProvider`, status bar, splash-screen session hydration, and `Stack.Protected` guards
   separating `(auth)` (sign-in, sign-up, verify-email, forgot-password, reset-password) and `(app)`
-  (verified workspace and change-password). Auth state uses Zustand + SecureStore (with web
-  AsyncStorage fallback) and a fetch client with single-flight `401` refresh rotation.
+  (verified workspace and change-password). Authentication talks to AuthKit
+  (`@tapanmeena/authkit-client`, pool `one-auth`, client `welyt-mobile`), with Zustand +
+  SecureStore (and web AsyncStorage fallback) session persistence, single-flight `401` refresh
+  rotation, and Welyt profile preferences (`debtMode`) synced via `/auth/me`.
 - `apps/api`: Fastify/TypeScript API (`apps/api/src/app.ts` and `apps/api/src/server.ts`) backed by
   SQLite (`better-sqlite3`) and Drizzle ORM (`apps/api/src/db/schema.ts`, migrations in
-  `apps/api/drizzle/`). Exposes `GET /health`, `/auth/*`, `/currencies`, `/accounts/*`, and
-  `/income/*` routes plus `app.authGuards` (`authenticate`, `requireVerifiedEmail`), with
-  interactive OpenAPI 3.0 / Swagger UI documentation at `/docs` in development
-  (`apps/api/src/plugins/openapi.ts`).
+  `apps/api/drizzle/`). Verifies AuthKit Ed25519 JWKS access tokens (`@tapanmeena/authkit-verify`),
+  provisions or email-links local `users` rows, and exposes `GET /health`, `GET/PATCH /auth/me`,
+  `/currencies`, `/accounts/*`, and `/income/*` routes plus `app.authGuards` (`authenticate`,
+  `requireVerifiedEmail`), with interactive OpenAPI 3.0 / Swagger UI documentation at `/docs` in
+  development (`apps/api/src/plugins/openapi.ts`).
 
 Decimal.js, charts, biometric local-auth, document picker, notifications, and financial domain
 models remain installed in `apps/mobile` for upcoming financial modules.

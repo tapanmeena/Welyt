@@ -8,12 +8,12 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { authSessionResponseSchema, indiaBusinessDate } from '@welyt/shared';
+import { indiaBusinessDate } from '@welyt/shared';
+import { AuthVerifyError, extractBearerToken } from '@tapanmeena/authkit-verify';
 import { buildApp } from '../../api/src/app.ts';
 import { loadApiEnv } from '../../api/src/config/env.ts';
 import { createDatabase } from '../../api/src/db/client.ts';
 import { fxRates } from '../../api/src/db/schema.ts';
-import { MemoryMailer } from '../../api/src/lib/mailer.ts';
 import { FRANKFURTER_SOURCE } from '../../api/src/modules/fx/frankfurter.provider.ts';
 import { connectAndroid } from './android-device.mjs';
 
@@ -26,35 +26,108 @@ const fixtureName = 'Welyt Android Fixture';
 async function fixtureApi(cleanup) {
   const database = createDatabase(':memory:');
   cleanup.push(database.close);
-  const mailer = new MemoryMailer();
-  const app = await buildApp({
-    database,
-    env: loadApiEnv({ NODE_ENV: 'test' }),
-    logger: false,
-    mailer,
-  });
-  cleanup.push(() => app.close());
 
   const credentials = {
     email: 'android.regression@example.test',
     password: `WelytTest${randomBytes(8).toString('hex')}1`,
   };
-  const registration = await app.inject({
-    method: 'POST',
-    url: '/auth/register',
-    payload: { ...credentials, name: fixtureName },
+  const userId = `usr_${randomUUID()}`;
+  const verifiedAt = new Date().toISOString();
+  const validAccessTokens = new Map();
+  const validRefreshTokens = new Set();
+
+  const authVerifier = {
+    async verifyToken(token) {
+      const identity = validAccessTokens.get(token);
+      if (!identity) {
+        throw new AuthVerifyError('TOKEN_INVALID', 'Invalid access token', 401);
+      }
+      return identity;
+    },
+    async verifyAuthorizationHeader(header) {
+      return authVerifier.verifyToken(extractBearerToken(header));
+    },
+  };
+
+  const app = await buildApp({
+    database,
+    env: loadApiEnv({ NODE_ENV: 'test' }),
+    authVerifier,
+    logger: false,
   });
-  assert.equal(registration.statusCode, 201, 'Fixture registration failed');
-  const { tokens } = authSessionResponseSchema.parse(registration.json());
-  const code = mailer.verifications[0]?.code;
-  assert.ok(code, 'Fixture verification code was not delivered');
-  const verification = await app.inject({
-    method: 'POST',
-    url: '/auth/verify-email',
-    headers: { authorization: `Bearer ${tokens.accessToken}` },
-    payload: { code },
+  cleanup.push(() => app.close());
+
+  function mintTokens() {
+    const accessToken = `atk_${randomUUID()}`;
+    const refreshToken = `rtk_${randomUUID()}`;
+    const sessionId = `ses_${randomUUID()}`;
+    const nowSec = Math.floor(Date.now() / 1000);
+    validAccessTokens.set(accessToken, {
+      userId,
+      email: credentials.email,
+      emailVerified: true,
+      name: fixtureName,
+      pool: 'one-auth',
+      clientId: 'welyt-mobile',
+      sessionId,
+      claims: {
+        iss: 'https://auth.tapanmeena.com',
+        sub: userId,
+        aud: ['pool:one-auth', 'app:welyt-mobile'],
+        pool: 'one-auth',
+        azp: 'welyt-mobile',
+        sid: sessionId,
+        email: credentials.email,
+        email_verified: true,
+        name: fixtureName,
+        iat: nowSec,
+        exp: nowSec + 900,
+      },
+    });
+    validRefreshTokens.add(refreshToken);
+    return {
+      accessToken,
+      refreshToken,
+      tokenType: 'Bearer',
+      expiresIn: 900,
+    };
+  }
+
+  const authkitUser = {
+    id: userId,
+    poolSlug: 'one-auth',
+    email: credentials.email,
+    name: fixtureName,
+    emailVerified: true,
+    emailVerifiedAt: verifiedAt,
+    hasPassword: true,
+    createdAt: verifiedAt,
+    updatedAt: verifiedAt,
+  };
+
+  app.post('/v1/auth/login', async (request, reply) => {
+    const body = request.body ?? {};
+    if (body.email !== credentials.email || body.password !== credentials.password) {
+      return reply
+        .code(401)
+        .send({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' } });
+    }
+    return { user: authkitUser, tokens: mintTokens(), verificationRequired: false };
   });
-  assert.equal(verification.statusCode, 200, 'Fixture email verification failed');
+
+  app.post('/v1/auth/refresh', async (request, reply) => {
+    const body = request.body ?? {};
+    if (!validRefreshTokens.has(body.refreshToken)) {
+      return reply
+        .code(401)
+        .send({ error: { code: 'REFRESH_TOKEN_INVALID', message: 'Invalid refresh token' } });
+    }
+    validRefreshTokens.delete(body.refreshToken);
+    return { user: authkitUser, tokens: mintTokens() };
+  });
+
+  app.get('/v1/auth/me', async () => ({ user: authkitUser }));
+  app.post('/v1/auth/logout', async () => ({ message: 'Signed out' }));
 
   const now = new Date();
   const rateOn = indiaBusinessDate(new Date(now.getTime() - 86_400_000));
@@ -105,6 +178,8 @@ async function startMetro(apiPort, cleanup) {
         EXPO_NO_DOTENV: '1',
         EXPO_NO_TELEMETRY: '1',
         EXPO_PUBLIC_API_URL: apiUrl,
+        EXPO_PUBLIC_AUTHKIT_URL: apiUrl,
+        EXPO_PUBLIC_AUTHKIT_CLIENT_ID: 'welyt-mobile',
         EXPO_PUBLIC_WELYT_ANDROID_TEST_ID: testId,
       },
       stdio: ['ignore', 'pipe', 'pipe'],

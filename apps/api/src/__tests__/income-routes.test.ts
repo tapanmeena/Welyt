@@ -5,7 +5,6 @@ import {
   AUTH_ERROR_CODES,
   INCOME_ERROR_CODES,
   apiErrorResponseSchema,
-  authSessionResponseSchema,
   incomeHistoryDtoSchema,
   incomeReceiptDtoSchema,
   indiaBusinessDate,
@@ -18,8 +17,8 @@ import { buildApp } from '../app.ts';
 import { loadApiEnv } from '../config/env.ts';
 import { createDatabase, type AppDatabase } from '../db/client.ts';
 import { fxRates, users } from '../db/schema.ts';
-import { MemoryMailer } from '../lib/mailer.ts';
 import { FRANKFURTER_SOURCE } from '../modules/fx/frankfurter.provider.ts';
+import { createTestAuthHarness } from './test-auth.ts';
 
 const receipt: IncomeReceiptInput = {
   receivedDate: '2024-03-31',
@@ -42,11 +41,11 @@ function expectError(
 
 async function setup(t: TestContext) {
   const database = createDatabase(':memory:');
-  const mailer = new MemoryMailer();
+  const auth = createTestAuthHarness();
   const app = await buildApp({
     env: loadApiEnv({ NODE_ENV: 'test' }),
     database,
-    mailer,
+    authVerifier: auth.authVerifier,
     logger: false,
     enableRateLimit: false,
   });
@@ -59,25 +58,14 @@ async function setup(t: TestContext) {
   });
 
   async function register(email: string, verify = true) {
-    const registration = await app.inject({
-      method: 'POST',
-      url: '/auth/register',
-      payload: { email, name: 'Income fixture', password: 'Password123' },
+    const headers = auth.authHeader({
+      email,
+      name: 'Income fixture',
+      emailVerified: verify,
     });
-    assert.equal(registration.statusCode, 201, registration.body);
-    const { tokens } = authSessionResponseSchema.parse(registration.json());
-    const headers = { authorization: `Bearer ${tokens.accessToken}` };
-    if (verify) {
-      const code = mailer.verifications.find((message) => message.to === email)?.code;
-      assert.ok(code);
-      const verification = await app.inject({
-        method: 'POST',
-        url: '/auth/verify-email',
-        headers,
-        payload: { code },
-      });
-      assert.equal(verification.statusCode, 200, verification.body);
-    }
+    // Ensure local user row is provisioned before tests inspect db.select().from(users)
+    const me = await app.inject({ url: '/auth/me', headers });
+    assert.equal(me.statusCode, 200, me.body);
     return headers;
   }
 

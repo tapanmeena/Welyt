@@ -100,6 +100,10 @@ const config: ExpoConfig = {
     ],
   ],
   extra: {
+    authkitUrl:
+      process.env.EXPO_PUBLIC_AUTHKIT_URL?.trim().replace(/\/+$/, '') ||
+      'https://auth.tapanmeena.com',
+    authkitClientId: process.env.EXPO_PUBLIC_AUTHKIT_CLIENT_ID?.trim() || 'welyt-mobile',
     router: {
       asyncRoutes: {
         web: true,

@@ -152,17 +152,10 @@ describe('Interactive OpenAPI / Swagger UI documentation', () => {
       false,
     );
     assert.equal(loadApiEnv({ NODE_ENV: 'test' }).apiDocsEnabled, false);
+    assert.equal(loadApiEnv({ NODE_ENV: 'production' }).apiDocsEnabled, false);
     assert.equal(
       loadApiEnv({
         NODE_ENV: 'production',
-        JWT_ACCESS_SECRET: 'production-secret-at-least-thirty-two-chars',
-      }).apiDocsEnabled,
-      false,
-    );
-    assert.equal(
-      loadApiEnv({
-        NODE_ENV: 'production',
-        JWT_ACCESS_SECRET: 'production-secret-at-least-thirty-two-chars',
         API_DOCS_ENABLED: 'true',
       }).apiDocsEnabled,
       true,
@@ -211,18 +204,8 @@ describe('Interactive OpenAPI / Swagger UI documentation', () => {
 
     const expectedOperations: Array<[string, string]> = [
       ['get', '/health'],
-      ['post', '/auth/register'],
-      ['post', '/auth/login'],
-      ['post', '/auth/refresh'],
-      ['post', '/auth/logout'],
-      ['post', '/auth/logout-all'],
       ['get', '/auth/me'],
       ['patch', '/auth/me'],
-      ['post', '/auth/verify-email'],
-      ['post', '/auth/resend-verification'],
-      ['post', '/auth/forgot-password'],
-      ['post', '/auth/reset-password'],
-      ['post', '/auth/change-password'],
       ['get', '/currencies'],
       ['get', '/accounts'],
       ['post', '/accounts'],
@@ -254,7 +237,7 @@ describe('Interactive OpenAPI / Swagger UI documentation', () => {
       );
     }
 
-    assert.deepEqual(spec.paths['/auth/verify-email']?.post?.security, [{}, { bearerAuth: [] }]);
+    assert.deepEqual(spec.paths['/auth/me']?.get?.security, [{ bearerAuth: [] }]);
     assert.deepEqual(spec.paths['/accounts']?.post?.security, [{ bearerAuth: [] }]);
     assert.equal(spec.paths['/accounts/{accountId}/archive']?.post?.requestBody, undefined);
   });

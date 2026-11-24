@@ -12,6 +12,8 @@
     "@react-native-community/netinfo": "12.0.1",
     "@shopify/flash-list": "2.3.2",
     "@tanstack/react-query": "5.107.1",
+    "@tapanmeena/authkit-client": "^0.3.0",
+    "@tapanmeena/authkit-shared": "^0.3.0",
     "@welyt/shared": "workspace:*",
     "date-fns": "4.4.0",
     "decimal.js": "10.6.0",

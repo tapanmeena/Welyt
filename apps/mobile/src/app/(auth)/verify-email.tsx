@@ -37,6 +37,7 @@ export default function VerifyEmailScreen() {
 
   const {
     control,
+    getValues,
     handleSubmit,
     setValue,
     setError,
@@ -92,7 +93,8 @@ export default function VerifyEmailScreen() {
     setBannerError(null);
     setBannerSuccess(null);
     try {
-      const response = await resendMutation.mutateAsync();
+      const emailArg = user?.email ?? (getValues('email')?.trim() || initialEmail || undefined);
+      const response = await resendMutation.mutateAsync(emailArg);
       setBannerSuccess(response.message);
       setCooldownSeconds(60);
     } catch (error) {
@@ -201,21 +203,17 @@ export default function VerifyEmailScreen() {
           }}
         />
 
-        {isSignedIn ? (
-          <AuthButton
-            variant="secondary"
-            label={
-              cooldownSeconds > 0
-                ? `Resend code in ${cooldownSeconds}s`
-                : 'Resend verification code'
-            }
-            disabled={cooldownSeconds > 0}
-            loading={resendMutation.isPending}
-            onPress={() => {
-              void handleResend();
-            }}
-          />
-        ) : null}
+        <AuthButton
+          variant="secondary"
+          label={
+            cooldownSeconds > 0 ? `Resend code in ${cooldownSeconds}s` : 'Resend verification code'
+          }
+          disabled={cooldownSeconds > 0}
+          loading={resendMutation.isPending}
+          onPress={() => {
+            void handleResend();
+          }}
+        />
       </View>
     </AuthScreenShell>
   );

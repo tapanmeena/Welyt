@@ -7,15 +7,14 @@ import {
   type ApiErrorCode,
   type MonthlyPlanSaveInput,
   apiErrorResponseSchema,
-  authSessionResponseSchema,
   monthlyPlanResponseSchema,
 } from '@welyt/shared';
 import { buildApp } from '../app.ts';
 import { loadApiEnv } from '../config/env.ts';
 import { createDatabase, type AppDatabase } from '../db/client.ts';
 import { users } from '../db/schema.ts';
-import { MemoryMailer } from '../lib/mailer.ts';
 import { MonthlyPlanService } from '../modules/income/monthly-plan.service.ts';
+import { createTestAuthHarness } from './test-auth.ts';
 
 const ruleUrl = '/income/plan-rules/auto-copy';
 const planInput: MonthlyPlanSaveInput = {
@@ -38,36 +37,21 @@ function expectError(
 }
 
 async function setup(t: TestContext) {
-  const mailer = new MemoryMailer();
+  const auth = createTestAuthHarness();
   const app = await buildApp({
     env: loadApiEnv({ NODE_ENV: 'test' }),
-    mailer,
+    authVerifier: auth.authVerifier,
     logger: false,
     enableRateLimit: false,
   });
   t.after(() => app.close());
 
   async function register(email: string, verify = true) {
-    const registration = await app.inject({
-      method: 'POST',
-      url: '/auth/register',
-      payload: { email, name: 'Plan fixture', password: 'Password123' },
+    return auth.authHeader({
+      email,
+      name: 'Plan fixture',
+      emailVerified: verify,
     });
-    assert.equal(registration.statusCode, 201, registration.body);
-    const { tokens } = authSessionResponseSchema.parse(registration.json());
-    const headers = { authorization: `Bearer ${tokens.accessToken}` };
-    if (verify) {
-      const code = mailer.verifications.find((message) => message.to === email)?.code;
-      assert.ok(code);
-      const verification = await app.inject({
-        method: 'POST',
-        url: '/auth/verify-email',
-        headers,
-        payload: { code },
-      });
-      assert.equal(verification.statusCode, 200, verification.body);
-    }
-    return headers;
   }
   return { app, register };
 }

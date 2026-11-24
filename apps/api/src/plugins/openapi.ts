@@ -159,9 +159,9 @@ const API_DESCRIPTION = [
   'Interactive OpenAPI documentation for testing Welyt API endpoints directly in the browser.',
   '',
   '### Quick-start workflow',
-  '1. Register via **POST `/auth/register`** or sign in via **POST `/auth/login`**.',
-  '2. Copy `tokens.accessToken` from the response, click **Authorize**, and paste the token (without the `Bearer ` prefix).',
-  '3. To call **Accounts & Cash** or **Income & Monthly Plans** routes, verify your email first via **POST `/auth/verify-email`** (when SMTP is not configured in local development, the 6-digit OTP is printed to the API console), then authorize with the newly returned `accessToken`.',
+  '1. Obtain an AuthKit access token for the `one-auth` pool (e.g., via AuthKit `/v1/auth/login`).',
+  '2. Click **Authorize** and paste the access token (without the `Bearer ` prefix).',
+  '3. **Accounts & Cash** and **Income & Monthly Plans** routes require a verified email (`email_verified: true`).',
 ].join('\n');
 
 export const OPENAPI_DOCS_PREFIX = '/docs';
@@ -185,8 +185,7 @@ export async function registerOpenApiDocs(app: FastifyInstance): Promise<void> {
         { name: 'System', description: 'Service health and operational checks' },
         {
           name: 'Authentication',
-          description:
-            'Registration, sessions, email verification, password recovery, and profile settings',
+          description: 'Current user profile and Welyt financial preferences',
         },
         {
           name: 'Accounts & Cash',
@@ -205,8 +204,7 @@ export async function registerOpenApiDocs(app: FastifyInstance): Promise<void> {
             type: 'http',
             scheme: 'bearer',
             bearerFormat: 'JWT',
-            description:
-              'Paste `tokens.accessToken` from `/auth/login`, `/auth/register`, or `/auth/verify-email`.',
+            description: 'Paste an AuthKit Ed25519 JWT access token.',
           },
         },
       },
